@@ -84,7 +84,11 @@ leaves the machine.
 
 FEIN, SSN, email, phone, credit cards (Luhn-checked), IBAN, AWS access/secret
 keys, GitHub tokens (ghp_/gho_/github_pat_), Slack tokens, generic API keys
-(sk-, AKIA...). Add your own via `.sanitize-patterns.json` — see README.
+(sk-, AKIA...), JWTs, connection-string passwords (Password=/Pwd=), PEM private
+key blocks, base64/hex encoded blobs, CVV, card expiry, dates of birth, passport
+numbers, driver's licenses, bank routing numbers, IP addresses, street addresses,
+medical license numbers, insurance member IDs. Add your own via
+`.sanitize-patterns.json` — see README.
 
 ## Privacy
 

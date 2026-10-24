@@ -70,6 +70,16 @@ public static class Sanitizer
         ("SLACK_TOKEN",new Regex(@"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), null),
         ("JWT",        new Regex(@"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*"), null),
         ("PASSWORD",   new Regex(@"(?<=\b(?:password|pwd)\s*=\s*)[^\s;'""&]+", RegexOptions.IgnoreCase), null),
+        ("CVV",            new Regex(@"(?i)\b(?:cvv|cvc|card verification(?: code)?|security code)\s*[:=]\s*\d{3,4}\b"), null),
+        ("EXPIRY",         new Regex(@"(?i)\b(?:exp(?:ires?|iry)?|valid thru|good thru)\s*[:=]?\s*(?:0[1-9]|1[0-2])[/-]\d{2,4}\b"), null),
+        ("DOB",            new Regex(@"(?i)\b(?:dob|date of birth|born on)\s*[:=]?\s*\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b"), null),
+        ("PASSPORT",       new Regex(@"(?i)\bpassport\s*(?:no\.?|number|#)?\s*[:=]?\s*[A-Z0-9]{6,9}\b"), null),
+        ("DL",             new Regex(@"(?i)\b(?:driver'?s?\s+lic(?:ense)?|dl)\s*(?:no\.?|number|#)?\s*[:=]?\s*[A-Z0-9]{5,12}\b"), null),
+        ("ROUTING",        new Regex(@"(?i)\b(?:routing|aba)\s*(?:no\.?|number|#)?\s*[:=]?\s*\d{9}\b"), null),
+        ("IP",             new Regex(@"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b"), null),
+        ("MEDICAL_LICENSE",new Regex(@"(?i)\b(?:medical\s+lic(?:ense)?|lic(?:ense)?)\s*(?:no\.?|number|#)?\s*[:=]?\s*[A-Z]{2}-[A-Z]{2}-\d{4,8}\b"), null),
+        ("INSURANCE_ID",   new Regex(@"(?i)\b(?:member|policy|insurance)\s*(?:id|#|number)?\s*[:=]?\s*[A-Z]{2,5}[- ]\d{4,12}\b"), null),
+        ("ADDRESS",        new Regex(@"(?i)\b\d{1,5}\s+(?:[A-Z][a-z]+\s){1,4}(?:street|st|avenue|ave|blvd|boulevard|road|rd|drive|dr|lane|ln|court|ct|way|terrace|ter|place|pl|circle|cir)\.?,?\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*,?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?\b"), null),
     };
 
     public static List<(string Type, Regex Rx, Func<string, bool>?)> BuiltIn() => BuiltInPatterns.ToList();

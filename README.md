@@ -154,13 +154,19 @@ Built-in recognizers (regex + validators — deterministic, no ML, no downloads)
 - SSN (with invalid-area guards)
 - Email addresses
 - US phone numbers
-- Credit card numbers (Luhn-validated — random digit strings don't fire)
+- Credit card numbers (Luhn-validated — random digit strings don't fire) + CVV / expiry dates
 - IBAN
 - AWS access keys
 - GitHub tokens
 - `sk-` / `sk_` API keys
 - Slack tokens
+- JWTs
+- Connection-string passwords (`Password=` / `Pwd=` — value masked, key preserved)
+- PEM private-key blocks (BEGIN→END, whole block)
 - Encoded dumps (base64/hex) — decoded and masked before matching
+- Dates of birth, passport numbers, driver's licenses, bank routing numbers, IP addresses
+- Street addresses (street + city + state + ZIP)
+- Medical license numbers, insurance member IDs
 
 Extend it with `.sanitize-patterns.json` in your project root — same contract, your domain:
 

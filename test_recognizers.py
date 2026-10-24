@@ -34,6 +34,16 @@ TEXT = (
     f"aws: {AWS_EXAMPLE}\n"
     f"gh: {GH_EXAMPLE}\n"
     f"slack: {SLACK_EXAMPLE}\n"
+    "cvv: 123\n"
+    "exp: 01/30\n"
+    "dob: 03/15/1985\n"
+    "passport: AB1234567\n"
+    "dl no: D12345678\n"
+    "routing: 021000021\n"
+    "ip: 192.168.1.100\n"
+    "addr: 742 Evergreen Terrace Dr, Springfield, IL 62704\n"
+    "license: CA-MD-8827341\n"
+    "member id: BCB-2847193\n"
 )
 
 async def main():
@@ -46,7 +56,9 @@ async def main():
             types = {f["Type"] for f in res["findings"]}
 
             expect = {"JWT", "PASSWORD", "API_KEY", "FEIN", "SSN",
-                      "EMAIL", "CARD", "IBAN", "AWS_KEY", "GH_TOKEN", "SLACK_TOKEN"}
+                      "EMAIL", "CARD", "IBAN", "AWS_KEY", "GH_TOKEN", "SLACK_TOKEN",
+                      "CVV", "EXPIRY", "DOB", "PASSPORT", "DL", "ROUTING", "IP",
+                      "ADDRESS", "MEDICAL_LICENSE", "INSURANCE_ID"}
             missing = expect - types
             assert not missing, f"missing recognizers: {missing} (got {sorted(types)})"
             # PEM blocks report via summary count (like encoded blobs), not findings
@@ -57,7 +69,9 @@ async def main():
             assert "MIIEpAIBAAKCAQEA" not in out, "PEM body leaked"
             assert "BEGIN RSA PRIVATE KEY" not in out, "PEM header leaked"
             for raw in ("ghp_", "xoxb-", "AKIAIOSFODNN7", "04-2105393", "123-45-6789",
-                        "jane.doe@", "4111 1111", "GB29 NWBK", "sk_test_51H8"):
+                        "jane.doe@", "4111 1111", "GB29 NWBK", "sk_test_51H8",
+                        "AB1234567", "021000021", "192.168.1.100", "CA-MD-8827341",
+                        "BCB-2847193", "Evergreen Terrace"):
                 assert raw not in out, f"regression leak: {raw}"
 
             # word-boundary invariant: no placeholder against a leftover letter/digit
