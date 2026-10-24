@@ -1,0 +1,8 @@
+bin/
+obj/
+publish/
+.vs/
+*.user
+.venv/
+__pycache__/
+*.pyc

@@ -1,0 +1,204 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
+
+namespace ClaimCheck;
+
+public sealed record Finding(int Line, string Type, string Placeholder);
+
+public sealed class VaultData
+{
+    [JsonPropertyName("map")] public Dictionary<string, string> Map { get; set; } = new();
+    [JsonPropertyName("reverse")] public Dictionary<string, string> Reverse { get; set; } = new();
+    [JsonPropertyName("counts")] public Dictionary<string, int> Counts { get; set; } = new();
+}
+
+public static class Sanitizer
+{
+    public const int MaxBytes = 2_000_000;
+
+    public static string VaultDir { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".sanitize-mcp", "vaults");
+
+    // SANITIZE_ROOTS — separator is platform-native (';' on Windows, ':' on Unix). Empty = unrestricted (local stdio use).
+    public static string[] Roots { get; } = (Environment.GetEnvironmentVariable("SANITIZE_ROOTS") ?? "")
+        .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(r => Path.GetFullPath(Environment.ExpandEnvironmentVariables(r)))
+        .ToArray();
+
+    public static void CheckRoot(string fullPath)
+    {
+        if (Roots.Length == 0) return;
+        foreach (var root in Roots)
+        {
+            var r = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (string.Equals(fullPath, r, StringComparison.OrdinalIgnoreCase) ||
+                fullPath.StartsWith(r + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+        throw new UnauthorizedAccessException($"path outside SANITIZE_ROOTS allowlist: {fullPath}");
+    }
+
+    public static bool Luhn(string s)
+    {
+        var digits = new List<int>();
+        foreach (var ch in s) if (char.IsAsciiDigit(ch)) digits.Add(ch - '0');
+        if (digits.Count is < 13 or > 19) return false;
+        int total = 0;
+        for (int i = 0; i < digits.Count; i++)
+        {
+            int d = digits[^(i + 1)];
+            if (i % 2 == 1) { d *= 2; if (d > 9) d -= 9; }
+            total += d;
+        }
+        return total % 10 == 0;
+    }
+
+    private static readonly (string Type, Regex Rx, Func<string, bool>? Validator)[] BuiltInPatterns =
+    {
+        ("FEIN",       new Regex(@"\b\d{2}-\d{7}\b"), null),
+        ("SSN",        new Regex(@"\b(?!000|666|9\d\d)\d{3}[- ](?!00)\d{2}[- ](?!0000)\d{4}\b"), null),
+        ("EMAIL",      new Regex(@"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), null),
+        ("CARD",       new Regex(@"(?<!\d)(?:\d[ -]?){13,19}(?!\d)"), Luhn),
+        ("PHONE",      new Regex(@"(?<![\d-])(\+?1[-. ])?(\(\d{3}\)[- ]|\d{3}[-. ])\d{3}[-. ]\d{4}(?!\d)"), null),
+        ("IBAN",       new Regex(@"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}\b"), null),
+        ("AWS_KEY",    new Regex(@"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), null),
+        ("GH_TOKEN",   new Regex(@"\bgh[pousr]_[A-Za-z0-9]{36,255}\b"), null),
+        ("API_KEY",    new Regex(@"\bsk[-_][A-Za-z0-9_-]{20,}\b"), null),
+        ("SLACK_TOKEN",new Regex(@"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), null),
+    };
+
+    public static List<(string Type, Regex Rx, Func<string, bool>?)> BuiltIn() => BuiltInPatterns.ToList();
+
+    public static List<(string Type, Regex Rx, Func<string, bool>?)> PatternsFor(DirectoryInfo root)
+    {
+        var list = BuiltInPatterns.ToList();
+        var f = Path.Combine(root.FullName, ".sanitize-patterns.json");
+        if (File.Exists(f))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(f));
+                foreach (var el in doc.RootElement.EnumerateArray())
+                {
+                    string name =
+                        (el.TryGetProperty("placeholder", out var phEl) ? phEl.GetString() : null) ??
+                        (el.TryGetProperty("name", out var nmEl) ? nmEl.GetString() : null) ?? "CUSTOM";
+                    var rx = el.GetProperty("regex").GetString() ?? throw new InvalidOperationException("missing regex");
+                    list.Add((name.ToUpperInvariant(), new Regex(rx), null));
+                }
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine($"sanitize: ignoring bad .sanitize-patterns.json: {e.Message}");
+            }
+        }
+        return list;
+    }
+
+    public static DirectoryInfo ProjectRoot(DirectoryInfo start)
+    {
+        for (var dir = start; dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, ".git")) ||
+                Directory.Exists(Path.Combine(dir.FullName, ".git")) ||
+                File.Exists(Path.Combine(dir.FullName, ".clinerules")) ||
+                File.Exists(Path.Combine(dir.FullName, ".sanitize-patterns.json")))
+                return dir;
+        }
+        return start;
+    }
+
+    public static (FileInfo File, VaultData Data) LoadVault(DirectoryInfo root)
+    {
+        Directory.CreateDirectory(VaultDir);
+        var key = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(root.FullName))).ToLowerInvariant()[..12];
+        var file = new FileInfo(Path.Combine(VaultDir, key + ".json"));
+        VaultData v = new();
+        if (file.Exists)
+        {
+            try { v = JsonSerializer.Deserialize<VaultData>(File.ReadAllText(file.FullName)) ?? new VaultData(); }
+            catch { v = new VaultData(); }
+        }
+        return (file, v);
+    }
+
+    public static void SaveVault(FileInfo file, VaultData v)
+    {
+        File.WriteAllText(file.FullName, JsonSerializer.Serialize(v, new JsonSerializerOptions { WriteIndented = true }));
+        if (!OperatingSystem.IsWindows())
+        {
+            try { File.SetUnixFileMode(file.FullName, UnixFileMode.UserRead | UnixFileMode.UserWrite); } catch { }
+        }
+        // Windows: %USERPROFILE% ACLs already restrict to the user; DPAPI encryption is a future tier.
+    }
+
+    public static string Placeholder(VaultData v, string type, string val)
+    {
+        if (v.Reverse.TryGetValue(val, out var existing)) return existing;
+        var n = (v.Counts.TryGetValue(type, out var c) ? c : 0) + 1;
+        v.Counts[type] = n;
+        var ph = $"{type}_{n}";
+        v.Reverse[val] = ph;
+        v.Map[ph] = val;
+        return ph;
+    }
+
+    public static (List<string> Lines, List<Finding> Findings) SanitizeLines(
+        string[] lines, List<(string Type, Regex Rx, Func<string, bool>?)> patterns, VaultData vault)
+    {
+        var result = new List<string>(lines.Length);
+        var findings = new List<Finding>();
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            foreach (var (type, rx, validator) in patterns)
+            {
+                line = rx.Replace(line, m =>
+                {
+                    var val = m.Value;
+                    if (validator is not null && !validator(val)) return val;
+                    var ph = Placeholder(vault, type, val);
+                    findings.Add(new Finding(i + 1, type, ph));
+                    return "[" + ph + "]";
+                });
+            }
+            result.Add(line);
+        }
+        return (result, findings);
+    }
+
+    public static Dictionary<string, object> Summary(List<Finding> findings) => new()
+    {
+        ["total"] = findings.Count,
+        ["by_type"] = findings.GroupBy(f => f.Type).ToDictionary(g => g.Key, g => g.Count()),
+    };
+
+    public static (string Text, string FullPath) LoadTextFile(string path)
+    {
+        if (path.StartsWith('~'))
+            path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                path[1..].TrimStart('/', '\\'));
+        var p = Path.GetFullPath(path);
+        CheckRoot(p);
+        if (!File.Exists(p)) throw new FileNotFoundException($"not found: {p}");
+        var fi = new FileInfo(p);
+        if (fi.Length > MaxBytes) throw new InvalidDataException($"file too large ({fi.Length} bytes > {MaxBytes}); split it first");
+        using (var fs = File.OpenRead(p))
+        {
+            Span<byte> head = stackalloc byte[8192];
+            var read = fs.Read(head);
+            foreach (var b in head[..read]) if (b == 0) throw new InvalidDataException("looks binary — refusing to scrub");
+        }
+        using var sr = new StreamReader(p, Encoding.UTF8);
+        return (sr.ReadToEnd(), p);
+    }
+
+    public static DirectoryInfo DirOf(string fullPath)
+    {
+        var dir = Path.GetDirectoryName(fullPath);
+        return new DirectoryInfo(string.IsNullOrEmpty(dir) ? Path.GetPathRoot(fullPath) ?? "/" : dir);
+    }
+}
