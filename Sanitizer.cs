@@ -68,6 +68,8 @@ public static class Sanitizer
         ("GH_TOKEN",   new Regex(@"\bgh[pousr]_[A-Za-z0-9]{36,255}\b"), null),
         ("API_KEY",    new Regex(@"\bsk[-_][A-Za-z0-9_-]{20,}\b"), null),
         ("SLACK_TOKEN",new Regex(@"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), null),
+        ("JWT",        new Regex(@"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*"), null),
+        ("PASSWORD",   new Regex(@"(?<=\b(?:password|pwd)\s*=\s*)[^\s;'""&]+", RegexOptions.IgnoreCase), null),
     };
 
     public static List<(string Type, Regex Rx, Func<string, bool>?)> BuiltIn() => BuiltInPatterns.ToList();
@@ -109,6 +111,24 @@ public static class Sanitizer
             if (replacement is null) return blob;
             count += found;
             return "[" + Placeholder(vault, "ENCODED", blob) + "]";
+        });
+        return (result, count);
+    }
+
+    private static readonly Regex PemBlockRx = new Regex(
+        @"-----BEGIN ((?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?)-----[\s\S]*?-----END \1-----",
+        RegexOptions.Compiled);
+
+    /// <summary>Mask PEM private key blocks (BEGIN..END, multi-line) directly. The base64
+    /// body decodes to binary DER, which the encoded-blob scanner cannot flag by content —
+    /// so the whole block goes into the vault as one ticket.</summary>
+    public static (string Text, int Count) ScrubPemBlocks(string text, VaultData vault)
+    {
+        var count = 0;
+        var result = PemBlockRx.Replace(text, m =>
+        {
+            count++;
+            return "[" + Placeholder(vault, "PRIVATE_KEY", m.Value) + "]";
         });
         return (result, count);
     }

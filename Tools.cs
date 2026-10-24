@@ -24,7 +24,8 @@ public static class Tools
         var root = Sanitizer.ProjectRoot(new DirectoryInfo(Directory.GetCurrentDirectory()));
         var (vaultFile, vault) = Sanitizer.LoadVault(root);
         var patterns = Sanitizer.PatternsFor(root);
-        var (text2, encCount) = Sanitizer.ScrubEncodedBlobs(text, vault, patterns);
+        var (text1, pemCount) = Sanitizer.ScrubPemBlocks(text, vault);
+        var (text2, encCount) = Sanitizer.ScrubEncodedBlobs(text1, vault, patterns);
         var (lines, findings) = Sanitizer.SanitizeLines(text2.Split('\n'), patterns, vault);
         var joined = string.Join('\n', lines);
         var (nerText, nerFindings) = Ner.Scrub(joined, vault);
@@ -36,6 +37,7 @@ public static class Tools
         Sanitizer.SaveVault(vaultFile, vault);
         var summary = Sanitizer.Summary(findings);
         if (encCount > 0) summary["encoded_blobs_redacted"] = encCount;
+        if (pemCount > 0) summary["private_keys_redacted"] = pemCount;
         return JsonSerializer.Serialize(new
         {
             label,
@@ -51,7 +53,8 @@ public static class Tools
         var root = Sanitizer.ProjectRoot(Sanitizer.DirOf(fullPath));
         var (vaultFile, vault) = Sanitizer.LoadVault(root);
         var patterns = Sanitizer.PatternsFor(root);
-        var (text2, encCount) = Sanitizer.ScrubEncodedBlobs(text, vault, patterns);
+        var (text1, pemCount) = Sanitizer.ScrubPemBlocks(text, vault);
+        var (text2, encCount) = Sanitizer.ScrubEncodedBlobs(text1, vault, patterns);
         var (lines, findings) = Sanitizer.SanitizeLines(text2.Split('\n'), patterns, vault);
         var joined = string.Join('\n', lines);
         var (nerText, nerFindings) = Ner.Scrub(joined, vault);
@@ -63,6 +66,7 @@ public static class Tools
         Sanitizer.SaveVault(vaultFile, vault);
         var summary = Sanitizer.Summary(findings);
         if (encCount > 0) summary["encoded_blobs_redacted"] = encCount;
+        if (pemCount > 0) summary["private_keys_redacted"] = pemCount;
         if (!includeContent)
             return JsonSerializer.Serialize(new { path = fullPath, summary }, JOpts);
         return JsonSerializer.Serialize(new

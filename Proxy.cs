@@ -138,14 +138,15 @@ public static class Proxy
 
     private static (string Text, int Count) ScrubOne(string text, VaultData vault)
     {
-        var (withEncoded, encoded) = Sanitizer.ScrubEncodedBlobs(text, vault, _patterns);
+        var (withPem, pemCount) = Sanitizer.ScrubPemBlocks(text, vault);
+        var (withEncoded, encoded) = Sanitizer.ScrubEncodedBlobs(withPem, vault, _patterns);
         var (scrubbed, n) = ScrubString(withEncoded, vault);
         if (Ner.Enabled)
         {
             var (nerText, nerFindings) = Ner.Scrub(scrubbed, vault);
             if (nerFindings.Count > 0) { scrubbed = nerText; n += nerFindings.Count; }
         }
-        return (scrubbed, encoded + n);
+        return (scrubbed, encoded + pemCount + n);
     }
 
     private static int ScrubMessages(JsonNode root, VaultData vault)
