@@ -1,0 +1,20 @@
+{
+  "$schema": "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/schema/server.schema.json",
+  "name": "io.github.saasclawai-org/claimcheck",
+  "display_name": "ClaimCheck",
+  "description": "Local-first PII pseudonymization MCP server — sanitize text, files, and LLM traffic with a reversible local vault. No account, no cloud, no egress.",
+  "version": "0.1.1",
+  "repository": {
+    "source": "github",
+    "url": "https://github.com/saasclawai-org/ClaimCheck"
+  },
+  "license": "MIT",
+  "keywords": ["pii", "privacy", "security", "sanitization", "dotnet"],
+  "packages": [
+    {
+      "registry_type": "github",
+      "identifier": "saasclawai-org/ClaimCheck",
+      "version": "0.1.1"
+    }
+  ]
+}
