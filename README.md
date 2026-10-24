@@ -42,6 +42,10 @@ document editing come out identical to running on raw data.
    vault: placeholder ⇄ original — local only, never transmitted
 ```
 
+![ClaimCheck architecture — both services and the Cline/OpenClaw interfaces](docs/architecture.png)
+
+*Rendered view of the two services and how Cline and OpenClaw connect — interactive HTML version in [`docs/architecture.html`](docs/architecture.html).*
+
 ## Mode 1 — MCP server (stdio)
 
 For Cline, Cursor, Claude Desktop, or any MCP client. Adds three tools:
