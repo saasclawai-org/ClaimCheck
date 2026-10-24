@@ -1,0 +1,154 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ClaimCheck — services &amp; interfaces</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f8fafc;
+    --fg: #172033;
+    --muted: #5b6475;
+    --line: #64748b;
+    --neutral: #e2e8f0;
+    --input: #bfdbfe;
+    --process: #c7d2fe;
+    --storage: #99f6e4;
+    --external: #fde68a;
+    --risk: #fecaca;
+    --riskline: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f172a;
+      --fg: #e5e7eb;
+      --muted: #a3adbd;
+      --line: #94a3b8;
+      --neutral: #334155;
+      --input: #1d4ed8;
+      --process: #4338ca;
+      --storage: #0f766e;
+      --external: #92400e;
+      --risk: #991b1b;
+      --riskline: #f87171;
+    }
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  main { max-width: 1020px; margin: 32px auto; padding: 0 20px; }
+  svg { width: 100%; height: auto; display: block; }
+  .title { font-size: 20px; font-weight: 650; fill: var(--fg); }
+  .label { font-size: 14px; font-weight: 600; fill: var(--fg); }
+  .small { font-size: 12px; fill: var(--muted); }
+  .tiny { font-size: 11px; fill: var(--muted); }
+  .node { stroke: var(--line); stroke-width: 1; }
+  .neutral { fill: var(--neutral); }
+  .input { fill: var(--input); }
+  .process { fill: var(--process); }
+  .storage { fill: var(--storage); }
+  .external { fill: var(--external); }
+  .edge { stroke: var(--line); stroke-width: 1.5; fill: none; }
+  .edge-risk { stroke: var(--riskline); stroke-width: 1.5; fill: none; stroke-dasharray: 7 5; }
+  .zone { fill: none; stroke: var(--line); stroke-width: 1; stroke-dasharray: 6 5; opacity: 0.8; }
+  .zonelabel { font-size: 12px; font-weight: 600; fill: var(--muted); }
+  .edgelabel { font-size: 11.5px; fill: var(--muted); }
+  .edgelabel-risk { font-size: 11.5px; fill: var(--riskline); }
+</style>
+<main>
+<svg viewBox="0 0 960 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ClaimCheck architecture: MCP server and proxy with Cline and OpenClaw interfaces">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+    </marker>
+    <marker id="arr-risk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--riskline)"/>
+    </marker>
+  </defs>
+
+  <text class="title" x="24" y="36">ClaimCheck — two services, two interfaces (everything scrubbed before Z.ai sees it)</text>
+
+  <!-- trust zones -->
+  <rect class="zone" x="24" y="56" width="676" height="540" rx="10"/>
+  <text class="zonelabel" x="36" y="78">YOUR MACHINE (trusted)</text>
+  <rect class="zone" x="724" y="56" width="212" height="540" rx="10"/>
+  <text class="zonelabel" x="736" y="78">CLOUD (untrusted)</text>
+
+  <!-- connectors first (under nodes) -->
+  <!-- You -> Cline -->
+  <path class="edge" d="M103,300 L103,178" marker-end="url(#arr)"/>
+  <!-- You -> OpenClaw (chat surface, not scrubbed) -->
+  <path class="edge edge-risk" d="M103,364 L103,466" marker-end="url(#arr-risk)"/>
+  <!-- Cline -> MCP server -->
+  <path class="edge" d="M198,142 C250,142 240,240 286,272" marker-end="url(#arr)"/>
+  <!-- OpenClaw -> MCP server -->
+  <path class="edge" d="M218,484 C260,430 250,360 286,332" marker-end="url(#arr)"/>
+  <!-- MCP server <-> Vault -->
+  <path class="edge" d="M380,348 L380,436" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <!-- Cline -> Z.ai (direct, NOT scrubbed) -->
+  <path class="edge edge-risk" d="M123,110 C320,30 620,60 826,266" marker-end="url(#arr-risk)"/>
+  <!-- OpenClaw -> Proxy -->
+  <path class="edge" d="M218,508 L476,510" marker-end="url(#arr)"/>
+  <!-- Proxy <-> Z.ai (scrub out, restore in) -->
+  <path class="edge" d="M690,505 C780,470 800,420 824,362" marker-start="url(#arr)" marker-end="url(#arr)"/>
+
+  <!-- edge labels -->
+  <text class="small" x="110" y="245">uses</text>
+  <text class="edgelabel-risk" x="110" y="425">Telegram chat —</text>
+  <text class="edgelabel-risk" x="110" y="440">pastes NOT scrubbed</text>
+  <text class="small" x="205" y="200">stdio</text>
+  <text class="small" x="205" y="216">opt-in tools</text>
+  <text class="small" x="228" y="405">stdio · bundle-mcp</text>
+  <text class="small" x="228" y="420">opt-in tools</text>
+  <text class="small" x="390" y="398">tickets ⇄ originals</text>
+  <text class="edgelabel-risk" x="300" y="70">model calls go DIRECT — not scrubbed (pastes leak here)</text>
+  <text class="small" x="250" y="498">every model call — automatic</text>
+  <text class="small" x="700" y="440">scrub outbound</text>
+  <text class="small" x="700" y="456">restore inbound</text>
+
+  <!-- nodes -->
+  <g>
+    <rect class="node neutral" x="48" y="300" width="110" height="64" rx="8"/>
+    <text class="label" x="103" y="328" text-anchor="middle">You</text>
+    <text class="small" x="103" y="346" text-anchor="middle">paste paths,</text>
+    <text class="small" x="103" y="360" text-anchor="middle">not keys</text>
+  </g>
+  <g>
+    <rect class="node input" x="48" y="110" width="150" height="64" rx="8"/>
+    <text class="label" x="123" y="138" text-anchor="middle">Cline</text>
+    <text class="small" x="123" y="156" text-anchor="middle">VS Code · MCP client</text>
+  </g>
+  <g>
+    <rect class="node input" x="48" y="470" width="170" height="64" rx="8"/>
+    <text class="label" x="133" y="498" text-anchor="middle">OpenClaw gateway</text>
+    <text class="small" x="133" y="516" text-anchor="middle">Telegram channel</text>
+  </g>
+  <g>
+    <rect class="node process" x="286" y="260" width="210" height="88" rx="10"/>
+    <text class="label" x="391" y="292" text-anchor="middle">ClaimCheck MCP server</text>
+    <text class="small" x="391" y="310" text-anchor="middle">stdio</text>
+    <text class="small" x="391" y="326" text-anchor="middle">read_sanitized · scan_file · sanitize_text</text>
+    <text class="tiny" x="391" y="342" text-anchor="middle">opt-in — agent chooses to call it</text>
+  </g>
+  <g>
+    <rect class="node process" x="476" y="470" width="210" height="88" rx="10"/>
+    <text class="label" x="581" y="502" text-anchor="middle">ClaimCheck proxy :8766</text>
+    <text class="small" x="581" y="520" text-anchor="middle">systemd service · always on</text>
+    <text class="small" x="581" y="536" text-anchor="middle">scrub outbound · restore inbound</text>
+    <text class="tiny" x="581" y="552" text-anchor="middle">automatic — no agent cooperation needed</text>
+  </g>
+  <g>
+    <rect class="node storage" x="290" y="440" width="180" height="60" rx="8"/>
+    <text class="label" x="380" y="466" text-anchor="middle">Vault (local only)</text>
+    <text class="small" x="380" y="484" text-anchor="middle">~/.sanitize-mcp/vaults · plaintext</text>
+  </g>
+  <g>
+    <rect class="node external" x="744" y="270" width="168" height="88" rx="10"/>
+    <text class="label" x="828" y="302" text-anchor="middle">Z.ai / GLM</text>
+    <text class="small" x="828" y="320" text-anchor="middle">cloud model provider</text>
+    <text class="small" x="828" y="336" text-anchor="middle">sees placeholders only</text>
+  </g>
+</svg>
+</main>
