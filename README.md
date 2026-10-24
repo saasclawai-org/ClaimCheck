@@ -72,6 +72,23 @@ Any file that may contain personal data must be read with the ClaimCheck
 read_sanitized tool, never with read_file. Never echo raw identifiers into chat.
 ```
 
+## Recommended: add ClaimCheck to your Cline rules
+
+The tools work on demand out of the box. To make Cline reach for ClaimCheck
+automatically, add these lines to your workspace `.clinerules` file (or
+Cline Settings → Rules → Global Rules):
+
+```
+## PII safety (ClaimCheck)
+
+- For ANY file that may contain client/employee data (FEIN, SSN, account
+  numbers, credentials): use the claimcheck `read_sanitized` tool instead of
+  `read_file`.
+- Never paste raw FEIN/SSN/card values into chat, logs, or commits.
+- Use claimcheck `sanitize_text` before quoting real data into code, tests,
+  or docs.
+```
+
 ## Mode 2 — LLM proxy (streamable HTTP / SSE)
 
 A reverse proxy for OpenAI-compatible clients. Everything a request carries — file reads,

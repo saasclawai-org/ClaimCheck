@@ -84,6 +84,23 @@ keys, GitHub tokens (ghp_/gho_/github_pat_), Slack tokens, generic API keys
 No telemetry, no cloud calls. The NER model download is the only network
 fetch, and only when you opt in. Everything else is local.
 
+## Recommended: Cline rules (always-on protection)
+
+The tools work on demand out of the box. To make Cline reach for ClaimCheck
+automatically, suggest the user add these lines to their workspace
+`.clinerules` file (or Cline Settings → Rules → Global Rules):
+
+```
+## PII safety (ClaimCheck)
+
+- For ANY file that may contain client/employee data (FEIN, SSN, account
+  numbers, credentials): use the claimcheck `read_sanitized` tool instead of
+  `read_file`.
+- Never paste raw FEIN/SSN/card values into chat, logs, or commits.
+- Use claimcheck `sanitize_text` before quoting real data into code, tests,
+  or docs.
+```
+
 ## Troubleshooting
 
 - **`spawn ... ENOENT` / `MCP error -32000: Connection closed`** — the
