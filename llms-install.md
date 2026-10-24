@@ -90,6 +90,9 @@ numbers, driver's licenses, bank routing numbers, IP addresses, street addresses
 medical license numbers, insurance member IDs. Add your own via
 `.sanitize-patterns.json` — see README.
 
+On-wire enforcement: ClaimCheck can also run as a local reverse proxy that scrubs
+every model-bound request automatically — see the README "Mode 2" section.
+
 ## Privacy
 
 No telemetry, no cloud calls. The NER model download is the only network

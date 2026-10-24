@@ -146,6 +146,41 @@ Point your client's base URL at `http://127.0.0.1:8766/v1` and keep your real AP
 client — auth passes through untouched. Streaming (SSE) is supported, including placeholders
 split across chunk boundaries.
 
+### Why the proxy matters (enforcement vs opt-in)
+
+The MCP tools sanitize only when the agent chooses to call them — every use is opt-in.
+A pasted-by-mistake secret, or a prompt-injection trick that makes the agent exfiltrate
+data, bypasses tools entirely. The proxy closes that gap: it sits between your client and
+the model provider, so EVERY model-bound request — including everything already in the
+conversation history — is scrubbed before the provider sees it. No agent cooperation
+required; only placeholders cross the wire.
+
+### OpenClaw example (verified live)
+
+Run the proxy as a user service — set `--upstream` to the API **root** (the client's full
+path is forwarded as-is; a path prefix in both places gets duplicated):
+
+    ClaimCheck --proxy --upstream https://api.z.ai/api/coding/paas/v4/ --port 8766
+
+and point the provider at it in `openclaw.json`:
+
+```json5
+{
+  models: {
+    providers: {
+      zai: { baseUrl: "http://127.0.0.1:8766/api/coding/paas/v4" }
+    }
+  }
+}
+```
+
+Every OpenClaw model call now crosses the scrub — verified live against Z.ai chat
+completions, streaming included, with placeholders restored on the response path.
+
+**Honest limits:** the proxy covers the model-provider hop only — the chat surface
+(Telegram, Discord, ...) still sees whatever was pasted before the proxy could act. And
+model FALLBACK providers configured outside the proxy are not covered.
+
 ## What it catches
 
 Built-in recognizers (regex + validators — deterministic, no ML, no downloads):
