@@ -81,7 +81,7 @@ telemetry, no accounts, no phoning home — the privacy brand is the moat.
    the founder's industry is the buyer, the product stays generic).
 7. **Priority support + upgrade SLA.**
 
-**Buyers:** teams running agent fleets. The internal deployment is the design
+**Buyers:** teams running agent fleets. Our own internal deployment is the design
 partner and first pilot — dogfood Pro features on our own fleet before selling.
 
 **Pricing anchors (Oct 24 strategy):** $19–29/seat/mo; enterprise $2–5k/yr with
