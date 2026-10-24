@@ -207,6 +207,16 @@ public static class Ner
     /// Returns the scrubbed text and per-entity findings. No-op when NER is disabled.</summary>
     public static (string Text, List<Finding> Findings) Scrub(string text, VaultData vault)
     {
+        // NER inference is far too slow for huge inputs (a 1M-token request would grind
+        // for minutes on CPU) — above the cap, fall back to the regex tier only.
+        var nerMax = 200_000;
+        var envMax = Environment.GetEnvironmentVariable("SANITIZE_NER_MAX_CHARS");
+        if (int.TryParse(envMax, out var parsed)) nerMax = parsed;
+        if (text.Length > nerMax)
+        {
+            Console.Error.WriteLine($"claimcheck ner: skipped (input {text.Length} chars > {nerMax} cap) — regex tier only");
+            return (text, new List<Finding>());
+        }
         if (!Enabled) return (text, new List<Finding>());
         EnsureModel();
         if (_session is null || _vocab is null || _id2label is null) return (text, new List<Finding>());
