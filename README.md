@@ -154,17 +154,21 @@ locally (~1–3 s per call); subword pieces of one entity are merged into a sing
 (the B-B quirk), and the config's label order is honored with a verified fallback.
 Model licenses vary on HuggingFace — check the card of whichever model you point at.
 
-Known quirk: subword tokenization can split one name into adjacent tickets
-(`Satya Nadella` → `Sa` + `ty` + `a Nadella`, three PERSON tickets) — functionally
-correct, cosmetically noisy. Merging adjacent same-type tickets is a roadmap item.
+Subword tokenization can split one name into adjacent tickets — those are snapped to
+full-word boundaries and merged, so `Satya Nadella` becomes a single ticket (fixed in
+v0.1.0; a regression invariant in `test_ner.py` guards it).
 
 ## Security model — the honest version
 
-**Covered:** structured identifiers — the high-volume leak class. Everything above runs
-locally; nothing phones home; the vault and the plaintext never leave your machine.
+**Covered:** structured identifiers (FEIN, SSN, cards, IBAN, AWS/GitHub/Slack keys, API
+keys, JWTs, connection-string passwords, PEM private-key blocks, base64/hex encoded
+blobs) — the high-volume leak class. Free-text names, orgs and locations via the opt-in
+NER tier. Everything runs locally; nothing phones home; the vault and the plaintext
+never leave your machine.
 
-**Not covered (yet):** free-text names and addresses need NER — regex can't see them.
-Roadmap: label-anchored heuristics, then local NER (Presidio-compatible recognizers).
+**Not covered:** PDF/DOCX and other binary formats (refused, not scrubbed — text
+extraction is roadmap); non-English text (the NER model is English-trained); other
+jurisdictions' tax-ID formats (that's what pluggable recognizer packs are for — roadmap).
 
 **Enforcement layers, strongest first:** the proxy mode scrubs everything on the wire
 (regardless of agent behavior); the MCP tools scrub what the agent chooses to read (needs a
@@ -173,6 +177,22 @@ with plaintext; the MCP mode is enough on its own for local models.
 
 **Known scope:** chat-completions requests are scrubbed in proxy mode; other endpoints pass
 through. Binary files are refused, not scrubbed.
+
+## No warranty — read this before you rely on it
+
+ClaimCheck is a best-effort sanitization tool, provided **AS IS** under the MIT license
+(no warranty, no liability — see `LICENSE` and `DISCLAIMER.md`). In plain language:
+
+- **No sanitizer catches 100%.** Recognition is pattern- and model-based; false negatives
+  and false positives happen. Verify outputs before sharing anything high-stakes.
+- **Not legal or compliance advice.** Using ClaimCheck does not make you GDPR-, HIPAA-,
+  PCI- or otherwise compliant, and it is not a certified control. Your data, your
+  obligations, your verification.
+- **The NER tier is statistical** and English-trained — it will miss and mangle things.
+- **The vault is stored unencrypted** on your machine (until the encryption tier ships).
+  Anyone with access to your user profile can reverse the placeholders. Protect your
+  machine accordingly.
+- **Defense in depth:** use ClaimCheck as one layer, not your only layer.
 
 ## Build & test
 
