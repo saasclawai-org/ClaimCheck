@@ -11,6 +11,11 @@ ClaimCheck install/update script (Windows)
   downloads a ~109MB model on first use):
       irm ... | iex   with   -EnableNER  (when running the downloaded file)
 
+  Optional: on-wire enforcement — scrub proxy auto-started at logon:
+      & .\install.ps1 -WithProxy
+      (then point your Cline model provider Base URL at
+       http://127.0.0.1:8766/api/coding/paas/v4 — see README Mode 2)
+
 - Downloads the latest GitHub release (win-x64 zip)
 - Backs up any existing ClaimCheck.exe to ClaimCheck.exe.bak
 - Auto-wires the Cline MCP config (VS Code stable + Insiders) if present,
@@ -21,7 +26,10 @@ ClaimCheck install/update script (Windows)
 #>
 param(
     [string]$InstallDir = "$env:USERPROFILE\claimcheck",
-    [switch]$EnableNER
+    [switch]$EnableNER,
+    [switch]$WithProxy,
+    [string]$ProxyUpstream = "https://api.z.ai/api/coding/paas/v4/",
+    [int]$ProxyPort = 8766
 )
 $ErrorActionPreference = "Stop"
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
@@ -72,6 +80,26 @@ $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$InstallDir*") {
     [Environment]::SetEnvironmentVariable("Path", "$userPath;$InstallDir", "User")
     Write-Host "Added $InstallDir to your user PATH (open a new terminal to use it)."
+}
+
+# Optional: on-wire enforcement — run the scrub proxy at logon
+if ($WithProxy) {
+    $proxyArgs = "--proxy --upstream `"$ProxyUpstream`" --port $ProxyPort"
+    try {
+        $action   = New-ScheduledTaskAction -Execute $target -Argument $proxyArgs
+        $trigger  = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable
+        Register-ScheduledTask -TaskName "ClaimCheckProxy" -Action $action -Trigger $trigger -Settings $settings -Description "ClaimCheck on-wire PII scrub proxy" -Force | Out-Null
+        Start-ScheduledTask -TaskName "ClaimCheckProxy"
+        Write-Host ""
+        Write-Host "Proxy registered + started (listens on 127.0.0.1:$ProxyPort, restarts at every logon)." -ForegroundColor Green
+        Write-Host "Point your Cline model provider Base URL at: http://127.0.0.1:$ProxyPort/api/coding/paas/v4"
+        Write-Host "(keep your real API key in Cline - auth passes through the proxy untouched)"
+    } catch {
+        Write-Host "Scheduled task registration failed: $_" -ForegroundColor Yellow
+        Write-Host "Manual fallback - put this command in your Startup folder (Win+R -> shell:startup):" -ForegroundColor Yellow
+        Write-Host "  `"$target`" $proxyArgs"
+    }
 }
 
 # --- 4. Wire up Cline MCP config automatically --------------------------------
