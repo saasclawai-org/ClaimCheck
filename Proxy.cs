@@ -241,6 +241,11 @@ public static class Proxy
                     var delta = choices[i]?["delta"];
                     if (delta is null) continue;
                     RestoreCarried(delta, "content", carries, "c" + i, vault);
+                    // Reasoning-capable OpenAI-compatible providers (including Z.ai)
+                    // may stream visible/model text through reasoning_content/reasoning.
+                    // Restore placeholders there too, preserving split-token handling.
+                    RestoreCarried(delta, "reasoning_content", carries, "r" + i, vault);
+                    RestoreCarried(delta, "reasoning", carries, "r2" + i, vault);
                     if (delta["tool_calls"] is JsonArray tcs)
                         for (var t = 0; t < tcs.Count; t++)
                             if (tcs[t]?["function"] is not null)
