@@ -44,6 +44,8 @@ TEXT = (
     "addr: 742 Evergreen Terrace Dr, Springfield, IL 62704\n"
     "license: CA-MD-8827341\n"
     "member id: BCB-2847193\n"
+    "api key: sk-live-a1b2c3d4e5f6g7h8i9\n"
+    "bank acct no: 12345678\n"
 )
 
 async def main():
@@ -58,7 +60,7 @@ async def main():
             expect = {"JWT", "PASSWORD", "API_KEY", "FEIN", "SSN",
                       "EMAIL", "CARD", "IBAN", "AWS_KEY", "GH_TOKEN", "SLACK_TOKEN",
                       "CVV", "EXPIRY", "DOB", "PASSPORT", "DL", "ROUTING", "IP",
-                      "ADDRESS", "MEDICAL_LICENSE", "INSURANCE_ID"}
+                      "ADDRESS", "MEDICAL_LICENSE", "INSURANCE_ID", "ACCOUNT"}
             missing = expect - types
             assert not missing, f"missing recognizers: {missing} (got {sorted(types)})"
             # PEM blocks report via summary count (like encoded blobs), not findings
@@ -71,7 +73,8 @@ async def main():
             for raw in ("ghp_", "xoxb-", "AKIAIOSFODNN7", "04-2105393", "123-45-6789",
                         "jane.doe@", "4111 1111", "GB29 NWBK", "sk_test_51H8",
                         "AB1234567", "021000021", "192.168.1.100", "CA-MD-8827341",
-                        "BCB-2847193", "Evergreen Terrace"):
+                        "BCB-2847193", "Evergreen Terrace", "sk-live-a1b2",
+                        "12345678"):
                 assert raw not in out, f"regression leak: {raw}"
 
             # word-boundary invariant: no placeholder against a leftover letter/digit
