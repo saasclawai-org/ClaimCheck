@@ -67,6 +67,13 @@ $f = Get-Item $target
 Write-Host ("Installed: {0}" -f $f.FullName)
 Write-Host ("           {0} bytes  ({1})" -f $f.Length, $f.LastWriteTime)
 
+# Add install dir to the user PATH (takes effect in NEW terminals)
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($userPath -notlike "*$InstallDir*") {
+    [Environment]::SetEnvironmentVariable("Path", "$userPath;$InstallDir", "User")
+    Write-Host "Added $InstallDir to your user PATH (open a new terminal to use it)."
+}
+
 # --- 4. Wire up Cline MCP config automatically --------------------------------
 $exeForward = $target -replace '\\', '/'
 $settingsTargets = @(
