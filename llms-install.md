@@ -83,3 +83,17 @@ keys, GitHub tokens (ghp_/gho_/github_pat_), Slack tokens, generic API keys
 
 No telemetry, no cloud calls. The NER model download is the only network
 fetch, and only when you opt in. Everything else is local.
+
+## Troubleshooting
+
+- **`spawn ... ENOENT` / `MCP error -32000: Connection closed`** — the
+  `command` path in the MCP config doesn't point at ClaimCheck.exe. Verify the
+  exe exists at the exact path (forward slashes in the config avoid escaping
+  issues on Windows), fix it, and save — the client reconnects.
+- **`property 'reasoning_content' is unsupported`** — the current task history
+  contains assistant messages saved by a reasoning-capable model. Start a
+  **new task/conversation** with ClaimCheck configured; the fresh history
+  won't carry that field.
+- **Server shows disconnected** — ClaimCheck writes ONLY JSON-RPC to stdout;
+  anything else on stdout breaks the transport. Run it from a terminal first
+  to confirm it starts clean (it should print nothing on stdout).
