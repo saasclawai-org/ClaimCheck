@@ -89,6 +89,49 @@ Cline Settings → Rules → Global Rules):
   or docs.
 ```
 
+## CLI for agents and scripts
+
+The same binary doubles as a plain CLI — one line from any script or agent, no MCP
+handshake needed:
+
+```bash
+# text from stdin or argument → JSON {summary, findings, sanitized}
+echo "..." | ClaimCheck sanitize-text
+ClaimCheck sanitize-text "some text"
+
+# file → summary only, or with sanitized content
+ClaimCheck sanitize-file path/to/file
+ClaimCheck sanitize-file path/to/file --content
+```
+
+The JSON parses trivially (Python `json.loads`, Node `JSON.parse`), so agents can pipe it
+through `jq`/`python` without speaking MCP. `.clinerules` and `llms-install.md` consumers
+use the same verbs.
+
+## OpenClaw integration
+
+[OpenClaw](https://docs.openclaw.ai) runs ClaimCheck as a first-class local MCP server
+(self-hosted, stdio — nothing leaves the machine). Add to `openclaw.json`:
+
+```json5
+{
+  mcp: {
+    servers: {
+      claimcheck: {
+        command: "dotnet",
+        args: ["<path>/bin/Release/net9.0/ClaimCheck.dll"],
+        enabled: true,
+        env: { SANITIZE_NER: "1" }   // optional — opt into the NER tier
+      }
+    }
+  }
+}
+```
+
+The three tools (`sanitize_text`, `read_sanitized`, `scan_file`) then project into every
+OpenClaw session as native tools (`bundle-mcp`), and OpenClaw skills can call the CLI
+verbs directly. Restart the gateway after editing the config.
+
 ## Mode 2 — LLM proxy (streamable HTTP / SSE)
 
 A reverse proxy for OpenAI-compatible clients. Everything a request carries — file reads,
