@@ -91,7 +91,14 @@ medical license numbers, insurance member IDs. Add your own via
 `.sanitize-patterns.json` — see README.
 
 On-wire enforcement: ClaimCheck can also run as a local reverse proxy that scrubs
-every model-bound request automatically — see the README "Mode 2" section.
+every model-bound request automatically. Setup (run persistently — e.g. a systemd
+user unit with Restart=always):
+
+    ClaimCheck --proxy --upstream https://api.z.ai/api/coding/paas/v4/ --port 8766
+
+Then point your model provider's base URL at the proxy (e.g.
+http://127.0.0.1:8766/api/coding/paas/v4) — auth passes through untouched. See
+the README "Mode 2" section for the full example and honest limits.
 
 ## Privacy
 
