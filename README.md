@@ -100,6 +100,7 @@ Built-in recognizers (regex + validators — deterministic, no ML, no downloads)
 - GitHub tokens
 - `sk-` / `sk_` API keys
 - Slack tokens
+- Encoded dumps (base64/hex) — decoded and masked before matching
 
 Extend it with `.sanitize-patterns.json` in your project root — same contract, your domain:
 
@@ -151,11 +152,14 @@ self-contained executable.
 
 ## Roadmap
 
-- [ ] Label-anchored heuristics (names after `Claimant:`, `Employer:` …)
+- [x] Encoded-output scrubbing — base64/hex dumps decoded and masked before matching
+- [x] Fail-closed proxy posture (`SANITIZE_FAIL_CLOSED=0` to disable)
+- [ ] Label-anchored heuristics (names after `Contact:`, `Owner:` …)
 - [ ] Local NER tier for free-text names/addresses
 - [ ] Hashed-identifier columns (peppered HMAC) for database lookups
-- [ ] Vertical recognizer packs (payroll/tax, healthcare, legal)
+- [ ] Pluggable recognizer packs
 - [ ] OS-keychain / DPAPI vault encryption
+- [ ] OCR pass for scanned documents
 
 ## License
 

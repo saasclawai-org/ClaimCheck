@@ -15,6 +15,10 @@ public static class Proxy
     private static readonly Regex PlaceholderRx = new(@"\[[A-Z][A-Z_]*_\d+\]");
     private static readonly Regex PartialTailRx = new(@"\[[A-Z][A-Z_0-9]{0,24}$");
 
+    /// <summary>Fail-closed: if the scrub pass throws, hold the request (503) instead of
+    /// forwarding unscrubbed. Default on; SANITIZE_FAIL_CLOSED=0 to disable.</summary>
+    public static bool FailClosed { get; } = Environment.GetEnvironmentVariable("SANITIZE_FAIL_CLOSED") != "0";
+
     private static VaultData _vault = new();
     private static FileInfo _vaultFile = null!;
     private static HttpClient _http = null!;
@@ -74,10 +78,20 @@ public static class Proxy
         try { root = JsonNode.Parse(body); }
         catch { ctx.Response.StatusCode = 400; await ctx.Response.WriteAsync("invalid JSON body"); return; }
 
-        if (root is not null)
+        try
         {
-            ScrubMessages(root, _vault);
-            Sanitizer.SaveVault(_vaultFile, _vault);
+            if (root is not null)
+            {
+                ScrubMessages(root, _vault);
+                Sanitizer.SaveVault(_vaultFile, _vault);
+            }
+        }
+        catch (Exception e)
+        {
+            if (!FailClosed) throw;
+            ctx.Response.StatusCode = 503;
+            await ctx.Response.WriteAsync("claimcheck: scrub failed (fail-closed): " + e.Message);
+            return;
         }
 
         var rest = path.StartsWith("v1/") ? path[3..] : path;
@@ -122,6 +136,13 @@ public static class Proxy
 
     // -------- outbound scrub --------
 
+    private static (string Text, int Count) ScrubOne(string text, VaultData vault)
+    {
+        var (withEncoded, encoded) = Sanitizer.ScrubEncodedBlobs(text, vault, _patterns);
+        var (scrubbed, n) = ScrubString(withEncoded, vault);
+        return (scrubbed, encoded + n);
+    }
+
     private static int ScrubMessages(JsonNode root, VaultData vault)
     {
         var count = 0;
@@ -131,21 +152,21 @@ public static class Proxy
             if (msg is null) continue;
             if (msg["content"] is JsonValue sv && sv.TryGetValue<string>(out var s))
             {
-                var (scrubbed, n) = ScrubString(s, vault);
+                var (scrubbed, n) = ScrubOne(s, vault);
                 if (n > 0) { msg["content"] = scrubbed; count += n; }
             }
             else if (msg["content"] is JsonArray parts)
                 foreach (var part in parts)
                     if (part?["text"] is JsonValue tv && tv.TryGetValue<string>(out var ts))
                     {
-                        var (scrubbed, n) = ScrubString(ts, vault);
+                        var (scrubbed, n) = ScrubOne(ts, vault);
                         if (n > 0) { part["text"] = scrubbed; count += n; }
                     }
             if (msg["tool_calls"] is JsonArray tcs)
                 foreach (var tc in tcs)
                     if (tc?["function"]?["arguments"] is JsonValue av && av.TryGetValue<string>(out var a))
                     {
-                        var (scrubbed, n) = ScrubString(a, vault);
+                        var (scrubbed, n) = ScrubOne(a, vault);
                         if (n > 0) { tc["function"]["arguments"] = scrubbed; count += n; }
                     }
         }

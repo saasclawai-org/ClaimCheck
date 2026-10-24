@@ -72,6 +72,47 @@ public static class Sanitizer
 
     public static List<(string Type, Regex Rx, Func<string, bool>?)> BuiltIn() => BuiltInPatterns.ToList();
 
+    private static readonly Regex EncodedBlobRx = new Regex(@"[A-Za-z0-9+/]{48,}={0,2}|[0-9a-fA-F]{96,}");
+
+    /// <summary>Detect base64/hex blobs, decode them, and mask the whole blob when the decoded
+    /// content contains matches. Closes the "base64 .env" / hex-dump leak that defeats pattern
+    /// matching. The original blob goes into the vault and is restored on output.</summary>
+    public static (string Text, int Count) ScrubEncodedBlobs(string text, VaultData vault,
+        List<(string Type, Regex Rx, Func<string, bool>?)> patterns)
+    {
+        var count = 0;
+        var result = EncodedBlobRx.Replace(text, m =>
+        {
+            var blob = m.Value;
+            string replacement = null;
+            var found = 0;
+            if (blob.Length % 2 == 0 && blob.All(Uri.IsHexDigit))
+            {
+                try
+                {
+                    var d = Encoding.UTF8.GetString(Convert.FromHexString(blob));
+                    var (lines2, f2) = SanitizeLines(d.Split('\n'), patterns, vault);
+                    if (f2.Count > 0) { replacement = string.Join('\n', lines2); found = f2.Count; }
+                }
+                catch { }
+            }
+            if (replacement is null)
+            {
+                try
+                {
+                    var d = Encoding.UTF8.GetString(Convert.FromBase64String(blob));
+                    var (lines2, f2) = SanitizeLines(d.Split('\n'), patterns, vault);
+                    if (f2.Count > 0) { replacement = string.Join('\n', lines2); found = f2.Count; }
+                }
+                catch { }
+            }
+            if (replacement is null) return blob;
+            count += found;
+            return "[" + Placeholder(vault, "ENCODED", blob) + "]";
+        });
+        return (result, count);
+    }
+
     public static List<(string Type, Regex Rx, Func<string, bool>?)> PatternsFor(DirectoryInfo root)
     {
         var list = BuiltInPatterns.ToList();

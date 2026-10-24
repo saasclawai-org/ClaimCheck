@@ -61,6 +61,18 @@ def main() -> None:
         assert FEIN not in json.dumps(seen), "stream path leaked FEIN upstream"
         print("stream OK — split placeholder restored cleanly:", deltas)
 
+        # ---- encoded blob (base64 .env-style dump — the `base64 .env` leak class)
+        import base64
+        blob = base64.b64encode(b"FEIN=27-9415062\\nACCOUNT=AK-12345678\\nTOKEN=hunter2secret").decode()
+        raw2 = post_raw({"model": "t", "stream": False, "messages": [
+            {"role": "user", "content": f"Config dump: {blob}"}]})
+        seen = json.loads(Path("/tmp/mock-last-request.json").read_text())
+        sent = json.dumps(seen)
+        assert blob not in sent, "encoded blob leaked upstream"
+        assert "[ENCODED_" in sent, f"encoded blob not masked: {sent[:300]}"
+        assert FEIN not in sent, "decoded FEIN leaked upstream"
+        print("encoded blob OK — upstream saw [ENCODED_…], blob and decoded value never left")
+
         # ---- vault persisted
         assert pv.exists() and "FEIN_1" in pv.read_text(), "vault not persisted"
         print("vault persistence OK:", pv)
