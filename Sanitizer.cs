@@ -160,7 +160,18 @@ public static class Sanitizer
         VaultData v = new();
         if (file.Exists)
         {
-            try { v = JsonSerializer.Deserialize<VaultData>(File.ReadAllText(file.FullName)) ?? new VaultData(); }
+            try
+            {
+                v = JsonSerializer.Deserialize<VaultData>(File.ReadAllText(file.FullName)) ?? new VaultData();
+                // self-heal: reverse is fully derivable from the map with typed keys,
+                // which also migrates legacy files that keyed reverse on the bare value
+                v.Reverse.Clear();
+                foreach (var (ph, val) in v.Map)
+                {
+                    var t = ph[..ph.LastIndexOf('_')];
+                    v.Reverse[t + "|" + val] = ph;
+                }
+            }
             catch { v = new VaultData(); }
         }
         return (file, v);
@@ -178,11 +189,12 @@ public static class Sanitizer
 
     public static string Placeholder(VaultData v, string type, string val)
     {
-        if (v.Reverse.TryGetValue(val, out var existing)) return existing;
+        var key = type + "|" + val;
+        if (v.Reverse.TryGetValue(key, out var existing)) return existing;
         var n = (v.Counts.TryGetValue(type, out var c) ? c : 0) + 1;
         v.Counts[type] = n;
         var ph = $"{type}_{n}";
-        v.Reverse[val] = ph;
+        v.Reverse[key] = ph;
         v.Map[ph] = val;
         return ph;
     }

@@ -140,6 +140,11 @@ public static class Proxy
     {
         var (withEncoded, encoded) = Sanitizer.ScrubEncodedBlobs(text, vault, _patterns);
         var (scrubbed, n) = ScrubString(withEncoded, vault);
+        if (Ner.Enabled)
+        {
+            var (nerText, nerFindings) = Ner.Scrub(scrubbed, vault);
+            if (nerFindings.Count > 0) { scrubbed = nerText; n += nerFindings.Count; }
+        }
         return (scrubbed, encoded + n);
     }
 

@@ -120,6 +120,27 @@ Restore locally whenever you need real values back:
 ClaimCheck restore <file->        # or read from stdin with -
 ```
 
+## NER tier — free-text names, orgs, locations (opt-in)
+
+The regex tier can't see free-text names. ClaimCheck optionally runs a local English NER
+model (quantized BERT ONNX, ~109 MB, downloaded once from HuggingFace) that catches
+PERSON/ORG/LOC/MISC entities in prose and issues tickets for them:
+
+```
+Employer: Jane Doe, FEIN [FEIN_1]   →   Employer: [PERSON_1], FEIN [FEIN_1]
+```
+
+Enable with `SANITIZE_NER=1` in the environment of the ClaimCheck process. Tuning:
+`SANITIZE_NER_THRESHOLD` (default 0.5), `SANITIZE_NER_MODEL` (any HuggingFace
+token-classification ONNX repo). Model cache: `~/.claimcheck/models/`. Inference runs
+locally (~1–3 s per call); subword pieces of one entity are merged into a single ticket
+(the B-B quirk), and the config's label order is honored with a verified fallback.
+Model licenses vary on HuggingFace — check the card of whichever model you point at.
+
+Known quirk: subword tokenization can split one name into adjacent tickets
+(`Satya Nadella` → `Sa` + `ty` + `a Nadella`, three PERSON tickets) — functionally
+correct, cosmetically noisy. Merging adjacent same-type tickets is a roadmap item.
+
 ## Security model — the honest version
 
 **Covered:** structured identifiers — the high-volume leak class. Everything above runs
@@ -155,7 +176,7 @@ self-contained executable.
 - [x] Encoded-output scrubbing — base64/hex dumps decoded and masked before matching
 - [x] Fail-closed proxy posture (`SANITIZE_FAIL_CLOSED=0` to disable)
 - [ ] Label-anchored heuristics (names after `Contact:`, `Owner:` …)
-- [ ] Local NER tier for free-text names/addresses
+- [x] Local NER tier for free-text names/addresses (`SANITIZE_NER=1`, local ONNX model)
 - [ ] Hashed-identifier columns (peppered HMAC) for database lookups
 - [ ] Pluggable recognizer packs
 - [ ] OS-keychain / DPAPI vault encryption

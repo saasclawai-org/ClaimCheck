@@ -26,6 +26,13 @@ public static class Tools
         var patterns = Sanitizer.PatternsFor(root);
         var (text2, encCount) = Sanitizer.ScrubEncodedBlobs(text, vault, patterns);
         var (lines, findings) = Sanitizer.SanitizeLines(text2.Split('\n'), patterns, vault);
+        var joined = string.Join('\n', lines);
+        var (nerText, nerFindings) = Ner.Scrub(joined, vault);
+        if (nerFindings.Count > 0)
+        {
+            lines = nerText.Split('\n').ToList();
+            findings.AddRange(nerFindings);
+        }
         Sanitizer.SaveVault(vaultFile, vault);
         var summary = Sanitizer.Summary(findings);
         if (encCount > 0) summary["encoded_blobs_redacted"] = encCount;
@@ -46,6 +53,13 @@ public static class Tools
         var patterns = Sanitizer.PatternsFor(root);
         var (text2, encCount) = Sanitizer.ScrubEncodedBlobs(text, vault, patterns);
         var (lines, findings) = Sanitizer.SanitizeLines(text2.Split('\n'), patterns, vault);
+        var joined = string.Join('\n', lines);
+        var (nerText, nerFindings) = Ner.Scrub(joined, vault);
+        if (nerFindings.Count > 0)
+        {
+            lines = nerText.Split('\n').ToList();
+            findings.AddRange(nerFindings);
+        }
         Sanitizer.SaveVault(vaultFile, vault);
         var summary = Sanitizer.Summary(findings);
         if (encCount > 0) summary["encoded_blobs_redacted"] = encCount;
