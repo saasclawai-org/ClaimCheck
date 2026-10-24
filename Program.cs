@@ -10,6 +10,20 @@ if (args.Length > 0 && args[0] == "restore")
     return 0;
 }
 
+if (args.Length > 0 && args[0] == "sanitize-text")
+{
+    var text = args.Length > 1 ? string.Join(' ', args[1..]) : Console.In.ReadToEnd();
+    Console.Out.Write(Tools.SanitizeText(text));
+    return 0;
+}
+
+if (args.Length > 0 && args[0] == "sanitize-file")
+{
+    if (args.Length < 2) { Console.Error.WriteLine("usage: ClaimCheck sanitize-file <path> [--content]"); return 1; }
+    Console.Out.Write(Tools.SanitizeFile(args[1], args.Contains("--content")));
+    return 0;
+}
+
 if (args.Length > 0 && args[0] == "--proxy")
 {
     return await Proxy.Run(args);

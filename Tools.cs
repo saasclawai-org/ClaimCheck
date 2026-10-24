@@ -47,7 +47,7 @@ public static class Tools
         }, JOpts);
     }
 
-    private static string SanitizeFile(string path, bool includeContent)
+    public static string SanitizeFile(string path, bool includeContent)
     {
         var (text, fullPath) = Sanitizer.LoadTextFile(path);
         var root = Sanitizer.ProjectRoot(Sanitizer.DirOf(fullPath));
