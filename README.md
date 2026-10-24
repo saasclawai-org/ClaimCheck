@@ -161,8 +161,11 @@ required; only placeholders cross the wire.
 
 ### OpenClaw example (verified live)
 
-Run the proxy as a user service — set `--upstream` to the API **root** (the client's full
-path is forwarded as-is; a path prefix in both places gets duplicated):
+Run the proxy as a user service. Keep the provider path in `--upstream` (as below): the
+proxy composes the client's request path onto it, and if the client's own base URL already
+carries the same path prefix — OpenClaw builds differ on this — it is stripped once before
+composing, so either client base-URL shape lands on the same upstream URL. (With a bare-
+root upstream, only clients that send the full provider path work.)
 
     ClaimCheck --proxy --upstream https://api.z.ai/api/coding/paas/v4/ --port 8766
 
@@ -180,6 +183,14 @@ and point the provider at it in `openclaw.json`:
 
 Every OpenClaw model call now crosses the scrub — verified live against Z.ai chat
 completions, streaming included, with placeholders restored on the response path.
+
+**Troubleshooting (OpenClaw version differences):** builds construct provider URLs
+differently — some append only `/chat/completions` to the configured base URL, newer ones
+append the full provider path themselves. Mismatch symptom: model calls 404 with a doubled
+or re-ordered path (e.g. `/v4/api/coding/paas/v4/...`). Fix: match the shapes — this proxy
+strips a duplicated prefix automatically — and set `SANITIZE_PROXY_LOG=1` on the service
+for one stderr line per request (method, path, upstream status, ms) to see exactly what
+crosses the wire.
 
 **Honest limits:** the proxy covers the model-provider hop only — the chat surface
 (Telegram, Discord, ...) still sees whatever was pasted before the proxy could act. And

@@ -19,10 +19,18 @@ public static class Proxy
     /// forwarding unscrubbed. Default on; SANITIZE_FAIL_CLOSED=0 to disable.</summary>
     public static bool FailClosed { get; } = Environment.GetEnvironmentVariable("SANITIZE_FAIL_CLOSED") != "0";
 
+    /// <summary>SANITIZE_PROXY_LOG=1 → one stderr line per request (method, path, status, ms).
+    /// Default off — journals stay free of per-request noise unless explicitly enabled.</summary>
+    private static readonly bool ReqLog = Environment.GetEnvironmentVariable("SANITIZE_PROXY_LOG") == "1";
+
     private static VaultData _vault = new();
     private static FileInfo _vaultFile = null!;
     private static HttpClient _http = null!;
     private static string _upstream = "";
+
+    // Upstream URL path prefix (e.g. "api/coding/paas/v4"); used to de-duplicate client paths
+    // whose base URL already carries it (OpenClaw builds differ across versions).
+    private static string? _upstreamPrefix;
     private static List<(string Type, Regex Rx, Func<string, bool>?)> _patterns = new();
 
     private static string? GetArg(string[] args, string name)
@@ -31,10 +39,37 @@ public static class Proxy
         return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
     }
 
+    private static string? UpstreamPathPrefix(string upstream)
+    {
+        if (!Uri.TryCreate(upstream, UriKind.Absolute, out var u)) return null;
+        var p = u.AbsolutePath.Trim('/');
+        return string.IsNullOrEmpty(p) ? null : p;
+    }
+
+    /// <summary>If the request path repeats the upstream's own path prefix, strip it once.
+    /// OpenClaw builds construct provider base URLs differently across versions (some send the
+    /// full provider path, some only /chat/completions on top of a base URL that already carries
+    /// it) — this makes both client shapes compose to the same upstream URL.</summary>
+    private static string StripUpstreamPrefix(string path)
+    {
+        if (_upstreamPrefix is null) return path;
+        var trimmed = path.TrimStart('/');
+        if (!trimmed.StartsWith(_upstreamPrefix, StringComparison.OrdinalIgnoreCase)) return path;
+        var rest = trimmed[_upstreamPrefix.Length..];
+        if (rest.Length > 0 && rest[0] != '/') return path; // partial segment match — leave untouched
+        return "/" + rest.TrimStart('/');
+    }
+
+    private static void LogReq(HttpContext ctx, string path, int status, long ms)
+    {
+        if (ReqLog) Console.Error.WriteLine($"claimcheck-proxy: {ctx.Request.Method} {path} -> {status} ({ms}ms)");
+    }
+
     public static async Task<int> Run(string[] args)
     {
         _upstream = GetArg(args, "--upstream") ?? throw new ArgumentException("--upstream <base-url> required");
         if (!_upstream.EndsWith('/')) _upstream += '/';
+        _upstreamPrefix = UpstreamPathPrefix(_upstream);
         var port = int.TryParse(GetArg(args, "--port"), out var p) ? p : 8766;
 
         Directory.CreateDirectory(Sanitizer.VaultDir);
@@ -71,12 +106,19 @@ public static class Proxy
 
     private static async Task HandleChat(HttpContext ctx, string path)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         using var reader = new StreamReader(ctx.Request.Body);
         var body = await reader.ReadToEndAsync();
 
         JsonNode? root;
         try { root = JsonNode.Parse(body); }
-        catch { ctx.Response.StatusCode = 400; await ctx.Response.WriteAsync("invalid JSON body"); return; }
+        catch
+        {
+            ctx.Response.StatusCode = 400;
+            LogReq(ctx, path, 400, sw.ElapsedMilliseconds);
+            await ctx.Response.WriteAsync("invalid JSON body");
+            return;
+        }
 
         try
         {
@@ -90,12 +132,14 @@ public static class Proxy
         {
             if (!FailClosed) throw;
             ctx.Response.StatusCode = 503;
+            LogReq(ctx, path, 503, sw.ElapsedMilliseconds);
             await ctx.Response.WriteAsync("claimcheck: scrub failed (fail-closed): " + e.Message);
             return;
         }
 
         var rest = path.StartsWith("v1/") ? path[3..] : path;
-        using var req = new HttpRequestMessage(HttpMethod.Post, _upstream + rest);
+        rest = StripUpstreamPrefix(rest);
+        using var req = new HttpRequestMessage(HttpMethod.Post, _upstream + rest.TrimStart('/'));
         if (ctx.Request.Headers.TryGetValue("Authorization", out var auth))
             req.Headers.TryAddWithoutValidation("Authorization", auth.ToArray());
         if (ctx.Request.Headers.TryGetValue("Accept", out var accept))
@@ -104,6 +148,7 @@ public static class Proxy
 
         using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
         ctx.Response.StatusCode = (int)resp.StatusCode;
+        LogReq(ctx, path, (int)resp.StatusCode, sw.ElapsedMilliseconds);
         var ctype = resp.Content.Headers.ContentType?.ToString() ?? "application/json";
         ctx.Response.ContentType = ctype;
         var media = resp.Content.Headers.ContentType?.MediaType ?? "";
@@ -119,7 +164,9 @@ public static class Proxy
 
     private static async Task PassThrough(HttpContext ctx, string path)
     {
-        using var req = new HttpRequestMessage(new HttpMethod(ctx.Request.Method), _upstream + path + ctx.Request.QueryString);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var fwd = StripUpstreamPrefix(path);
+        using var req = new HttpRequestMessage(new HttpMethod(ctx.Request.Method), _upstream + fwd.TrimStart('/') + ctx.Request.QueryString);
         foreach (var h in ctx.Request.Headers)
             if (!h.Key.Equals("Host", StringComparison.OrdinalIgnoreCase))
                 req.Headers.TryAddWithoutValidation(h.Key, h.Value.ToArray());
@@ -128,6 +175,7 @@ public static class Proxy
 
         using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
         ctx.Response.StatusCode = (int)resp.StatusCode;
+        LogReq(ctx, path, (int)resp.StatusCode, sw.ElapsedMilliseconds);
         if (resp.Content.Headers.ContentType is not null)
             ctx.Response.ContentType = resp.Content.Headers.ContentType.ToString();
         if (resp.Content is not null)

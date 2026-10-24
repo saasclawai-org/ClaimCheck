@@ -100,6 +100,14 @@ Then point your model provider's base URL at the proxy (e.g.
 http://127.0.0.1:8766/api/coding/paas/v4) — auth passes through untouched. See
 the README "Mode 2" section for the full example and honest limits.
 
+**Base-URL shape note:** different OpenClaw builds construct provider URLs differently —
+some append the full provider path (`/api/coding/paas/v4/chat/completions`) to the base
+URL themselves, some append only `/chat/completions`. Current proxy builds de-duplicate
+this: a request path that repeats the upstream's own path prefix is stripped once, so
+either client base-URL shape composes correctly. On mismatch you'll see 404s with a
+doubled path — fix by matching the shapes, and set `SANITIZE_PROXY_LOG=1` on the proxy
+for one stderr line per request (method, path, upstream status, ms) to see the wire.
+
 ## Privacy
 
 No telemetry, no cloud calls. The NER model download is the only network
