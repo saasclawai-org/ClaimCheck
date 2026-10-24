@@ -6,6 +6,13 @@ is ever written there). Tools: `read_sanitized`, `scan_file`, `sanitize_text`.
 
 ## Option A — release binary (Windows, fastest)
 
+One command (PowerShell) — installs or updates to `%USERPROFILE%\claimcheck` and
+auto-wires the Cline MCP config (VS Code must be closed while it runs):
+
+    irm https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.ps1 | iex
+
+Manual install:
+
 1. Download the latest release asset from
    https://github.com/saasclawai-org/ClaimCheck/releases
    ("ClaimCheck vX.Y.Z for Windows x64") and extract it, e.g. to
