@@ -6,6 +6,7 @@ import asyncio
 import datetime
 import json
 import os
+import re
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
@@ -34,6 +35,9 @@ async def main() -> None:
             assert "[LOC_" in out, "no LOC ticket"
             types = {f["Type"] for f in res["findings"]}
             assert {"PERSON", "ORG", "LOC"} <= types, types
+            # word-boundary invariant: a placeholder must never sit directly
+            # against a leftover letter/digit (partial-PII leak, e.g. "[PERSON_1]e")
+            assert not re.search(r"\[[A-Z_]+_\d+\][A-Za-z0-9]", out), f"partial-word leak beside a placeholder: {out!r}"
             print("scrub OK — PERSON/ORG/LOC tickets issued")
 
             # vault consistency: same entities -> same tickets in a second call
@@ -41,10 +45,10 @@ async def main() -> None:
                 {"text": "Jane Doe emailed the Seattle office about Microsoft."})).content[0].text)
             out2 = res2["sanitized"]
             assert "Jane" not in out2 and "Seattle" not in out2 and "Microsoft" not in out2
+            assert not re.search(r"\[[A-Z_]+_\d+\][A-Za-z0-9]", out2), f"partial-word leak beside a placeholder: {out2!r}"
             tickets = [f["Placeholder"] for f in res["findings"]]
             for t in tickets:
                 ph = "[" + t["Placeholder"] + "]" if isinstance(t, dict) else None
-            import re
             first_pass = dict(re.findall(r"\[([A-Z]+_\d+)\]", out) and zip(*[iter([])]*2)) or {}
             # simpler: extract ticket->entity expectations via a third call on plain entities
             res3 = json.loads((await s.call_tool("sanitize_text",

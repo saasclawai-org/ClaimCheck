@@ -304,6 +304,42 @@ public static class Ner
         }
         Close();
 
+        // Snap entity spans to full word boundaries: WordPiece can split a word
+        // ("Doe" -> "Do" + "##e") and a low-confidence trailing subword piece then
+        // strands characters outside the span ("[PERSON_1]e") — a partial-PII leak.
+        // A detected entity never ends or starts mid-word: extend both edges over
+        // adjacent letters/digits in the source text (stop at whitespace/punctuation).
+        entities = entities
+            .Select(en =>
+            {
+                var s = en.Start;
+                var e = en.End;
+                while (e < text.Length && char.IsLetterOrDigit(text[e])) e++;
+                while (s > 0 && char.IsLetterOrDigit(text[s - 1])) s--;
+                return (Start: s, End: e, Type: en.Type, Prob: en.Prob);
+            })
+            .OrderBy(en => en.Start)
+            .ToList();
+
+        // B-labeled subword pieces fragment one name into several adjacent spans;
+        // after snapping they overlap, and overlapping replacements corrupt the
+        // text — merge same-type spans that now overlap or touch.
+        var mergedEnts = new List<(int Start, int End, string Type, double Prob)>();
+        foreach (var en in entities)
+        {
+            if (mergedEnts.Count > 0)
+            {
+                var last = mergedEnts[^1];
+                if (last.Type == en.Type && en.Start <= last.End)
+                {
+                    mergedEnts[^1] = (last.Start, Math.Max(last.End, en.End), last.Type, Math.Max(last.Prob, en.Prob));
+                    continue;
+                }
+            }
+            mergedEnts.Add(en);
+        }
+        entities = mergedEnts;
+
         // drop overlaps with protected placeholders, dedupe, replace right-to-left
         entities = entities
             .Where(en => !protectedSpans.Any(p => en.Start < p.End && en.End > p.Start))
