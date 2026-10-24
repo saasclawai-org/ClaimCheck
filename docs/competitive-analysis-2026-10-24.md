@@ -112,6 +112,13 @@ without writing them ourselves. Cheap to parse (regex + minimal DSL), high lever
 - **Injection classifiers** — Meta Prompt Guard 2 (~22M params), protectai
   deberta-injection, Rebuff. These are *building blocks* for our proposed injection
   tier, not competitors.
+- **vulnhuntr (Protect AI)** — offensive tooling, not a competitor: autonomous LLM-driven
+  vulnerability discovery in Python codebases (LFI/RCE/SSRF/XSS/SQLI/IDOR/AFO), with real
+  CVEs in major LLM-infrastructure projects (ComfyUI, Langflow, FastChat, Ragflow, LLaVA,
+  Letta). Two relevance points: (a) existence proof for the toolguard phase-2 — LLMs
+  analyzing code for hostile semantics works at PoC quality; (b) threat-model sharpening —
+  automated offense against LLM/agent infrastructure is already here (its Claude-API costs
+  are hefty; our local self-hosted lanes make the defensive inverse economical).
 - **Skill-registry competition** — ClawHub PII/redact skills: idea-saturated,
   adoption-empty (all 0–2 installs/60d as of today). Not a threat lane.
 
@@ -136,7 +143,7 @@ without writing them ourselves. Cheap to parse (regex + minimal DSL), high lever
    policy file; accepts Semgrep-generic-mode import (the adoption lever above).
    Phase-2: semantic review of flagged calls via a small local model (self-hosted GPU
    lane). The proxy already parses `tool_calls[].function.arguments` — this is a
-   recognizer set over existing plumbing, not a new architecture.
+   recognizer set over existing plumbing, not a new architecture. Phase-2 feasibility is demonstrated in the field by vulnhuntr (see adjacent set): LLMs build and iterate PoC exploit chains — the inverted capability judges tool calls.
 3. **Pattern-count race: DECLINED.** Sunglasses owns breadth. Our differentiators are
    the vault/workflow model, the model-wire position, the self-contained binary, and
    (now) concurrency-safe atomic vaults.
