@@ -73,7 +73,17 @@ public static class Proxy
         var port = int.TryParse(GetArg(args, "--port"), out var p) ? p : 8766;
 
         Directory.CreateDirectory(Sanitizer.VaultDir);
-        _vaultFile = new FileInfo(Path.Combine(Sanitizer.VaultDir, "proxy.json"));
+        var vaultOverride = GetArg(args, "--vault");
+        if (!string.IsNullOrWhiteSpace(vaultOverride))
+        {
+            var vPath = Path.GetFullPath(Environment.ExpandEnvironmentVariables(vaultOverride));
+            Directory.CreateDirectory(Path.GetDirectoryName(vPath)!);
+            _vaultFile = new FileInfo(vPath);
+        }
+        else
+        {
+            _vaultFile = new FileInfo(Path.Combine(Sanitizer.VaultDir, "proxy.json"));
+        }
         if (_vaultFile.Exists)
         {
             try { _vault = JsonSerializer.Deserialize<VaultData>(File.ReadAllText(_vaultFile.FullName)) ?? new VaultData(); }
@@ -146,7 +156,19 @@ public static class Proxy
             req.Headers.TryAddWithoutValidation("Accept", accept.ToArray());
         req.Content = new StringContent(root?.ToJsonString() ?? body, Encoding.UTF8, "application/json");
 
-        using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+        HttpResponseMessage resp;
+        try
+        {
+            resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+        }
+        catch (Exception e) when (e is HttpRequestException or System.IO.IOException)
+        {
+            ctx.Response.StatusCode = 502;
+            LogReq(ctx, path, 502, sw.ElapsedMilliseconds);
+            await ctx.Response.WriteAsync("claimcheck: upstream unreachable: " + e.Message);
+            return;
+        }
+        using var _respScope = resp;
         ctx.Response.StatusCode = (int)resp.StatusCode;
         LogReq(ctx, path, (int)resp.StatusCode, sw.ElapsedMilliseconds);
         var ctype = resp.Content.Headers.ContentType?.ToString() ?? "application/json";
@@ -173,7 +195,19 @@ public static class Proxy
         if (ctx.Request.ContentLength > 0 || ctx.Request.Headers.ContainsKey("Transfer-Encoding"))
             req.Content = new StreamContent(ctx.Request.Body);
 
-        using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+        HttpResponseMessage resp;
+        try
+        {
+            resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+        }
+        catch (Exception e) when (e is HttpRequestException or System.IO.IOException)
+        {
+            ctx.Response.StatusCode = 502;
+            LogReq(ctx, path, 502, sw.ElapsedMilliseconds);
+            await ctx.Response.WriteAsync("claimcheck: upstream unreachable: " + e.Message);
+            return;
+        }
+        using var _respScope = resp;
         ctx.Response.StatusCode = (int)resp.StatusCode;
         LogReq(ctx, path, (int)resp.StatusCode, sw.ElapsedMilliseconds);
         if (resp.Content.Headers.ContentType is not null)
@@ -238,8 +272,11 @@ public static class Proxy
     private static string RestoreText(string text, VaultData vault)
     {
         if (!PlaceholderRx.IsMatch(text)) return text;
-        foreach (var (ph, val) in vault.Map)
-            text = text.Replace("[" + ph + "]", val);
+        lock (Sanitizer.VaultLock)
+        {
+            foreach (var (ph, val) in vault.Map)
+                text = text.Replace("[" + ph + "]", val);
+        }
         return text;
     }
 

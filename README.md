@@ -192,6 +192,11 @@ strips a duplicated prefix automatically — and set `SANITIZE_PROXY_LOG=1` on t
 for one stderr line per request (method, path, upstream status, ms) to see exactly what
 crosses the wire.
 
+**Multiple instances (one per lane):** pass each a distinct `--vault /path/vault.json` —
+vaults are per-instance namespaces, restorable only through the instance that scrubbed
+them. Saves are atomic and locked (concurrent-safe); upstream connection failures return
+a clean 502, never a stack-trace 500.
+
 **Honest limits:** the proxy covers the model-provider hop only — the chat surface
 (Telegram, Discord, ...) still sees whatever was pasted before the proxy could act. And
 model FALLBACK providers configured outside the proxy are not covered.

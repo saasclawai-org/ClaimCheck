@@ -108,6 +108,11 @@ either client base-URL shape composes correctly. On mismatch you'll see 404s wit
 doubled path — fix by matching the shapes, and set `SANITIZE_PROXY_LOG=1` on the proxy
 for one stderr line per request (method, path, upstream status, ms) to see the wire.
 
+Running several proxy instances (one per model lane)? Give each its own vault file with
+`--vault /path/vault.json` — a vault is one placeholder namespace, restorable only through
+the instance that scrubbed it. Vault saves are atomic and locked (concurrent-safe), and
+upstream connection failures return a clean 502.
+
 ## Privacy
 
 No telemetry, no cloud calls. The NER model download is the only network

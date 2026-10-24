@@ -22,6 +22,10 @@ public static class Sanitizer
     public static string VaultDir { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".sanitize-mcp", "vaults");
 
+    /// <summary>Guards vault mutation (Placeholder minting) and file save/load.
+    /// Vault ops are in-memory microseconds; one coarse lock keeps concurrent proxy requests safe.</summary>
+    public static readonly object VaultLock = new();
+
     // SANITIZE_ROOTS — separator is platform-native (';' on Windows, ':' on Unix). Empty = unrestricted (local stdio use).
     public static string[] Roots { get; } = (Environment.GetEnvironmentVariable("SANITIZE_ROOTS") ?? "")
         .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -210,24 +214,33 @@ public static class Sanitizer
 
     public static void SaveVault(FileInfo file, VaultData v)
     {
-        File.WriteAllText(file.FullName, JsonSerializer.Serialize(v, new JsonSerializerOptions { WriteIndented = true }));
-        if (!OperatingSystem.IsWindows())
+        lock (VaultLock)
         {
-            try { File.SetUnixFileMode(file.FullName, UnixFileMode.UserRead | UnixFileMode.UserWrite); } catch { }
+            var tmp = file.FullName + ".tmp";
+            File.WriteAllText(tmp, JsonSerializer.Serialize(v, new JsonSerializerOptions { WriteIndented = true }));
+            if (!OperatingSystem.IsWindows())
+            {
+                try { File.SetUnixFileMode(tmp, UnixFileMode.UserRead | UnixFileMode.UserWrite); } catch { }
+            }
+            // Atomic publish: readers see the old file or the new one, never a torn write.
+            File.Move(tmp, file.FullName, overwrite: true);
         }
         // Windows: %USERPROFILE% ACLs already restrict to the user; DPAPI encryption is a future tier.
     }
 
     public static string Placeholder(VaultData v, string type, string val)
     {
-        var key = type + "|" + val;
-        if (v.Reverse.TryGetValue(key, out var existing)) return existing;
-        var n = (v.Counts.TryGetValue(type, out var c) ? c : 0) + 1;
-        v.Counts[type] = n;
-        var ph = $"{type}_{n}";
-        v.Reverse[key] = ph;
-        v.Map[ph] = val;
-        return ph;
+        lock (VaultLock)
+        {
+            var key = type + "|" + val;
+            if (v.Reverse.TryGetValue(key, out var existing)) return existing;
+            var n = (v.Counts.TryGetValue(type, out var c) ? c : 0) + 1;
+            v.Counts[type] = n;
+            var ph = $"{type}_{n}";
+            v.Reverse[key] = ph;
+            v.Map[ph] = val;
+            return ph;
+        }
     }
 
     public static (List<string> Lines, List<Finding> Findings) SanitizeLines(
