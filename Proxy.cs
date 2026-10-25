@@ -140,6 +140,7 @@ public static class Proxy
             failClosed = FailClosed,
             nerFailed = Ner.Failed,
             nerFailReason = Ner.FailReason,
+            nerProvider = Ner.Provider,
             startedUtc = StartedUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'"),
         }));
         app.Map("/{**path}", async (HttpContext ctx, string? path) =>

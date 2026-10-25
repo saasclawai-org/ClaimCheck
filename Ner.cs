@@ -39,6 +39,8 @@ public static class Ner
     /// status verb so silent NER degradation is visible to the user.</summary>
     public static string? FailReason { get; private set; }
     public static bool Failed => _failed;
+    /// <summary>Which execution path the NER session uses (CPU / DirectML (GPU)).</summary>
+    public static string Provider { get; private set; } = "CPU";
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(15) };
 
@@ -105,8 +107,24 @@ public static class Ner
                 }
 
                 var so = new SessionOptions();
-                so.IntraOpNumThreads = 2;   // small model: 2 threads keeps latency, saves cores
-                so.InterOpNumThreads = 1;
+#if NET9_0_WINDOWS_OR_GREATER
+                // Windows: DirectML (GPU) first — any DX12 GPU, ~10-50ms per window vs
+                // hundreds on CPU. Falls back to the CPU EP when no DML device exists.
+                try
+                {
+                    so.AppendExecutionProvider_DML(0);
+                    so.AppendExecutionProvider_CPU(1);
+                    Provider = "DirectML (GPU)";
+                }
+                catch
+                {
+                    so.AppendExecutionProvider_CPU(0);
+                    Provider = "CPU";
+                }
+#else
+                so.AppendExecutionProvider_CPU(0);
+                Provider = "CPU";
+#endif
                 _session = new InferenceSession(modelPath, so);
                 Console.Error.WriteLine($"claimcheck ner: ready ({_vocab.Count} vocab, {_id2label.Length} labels)");
                 FailReason = null;
@@ -243,9 +261,14 @@ public static class Ner
         var probs = new double[tokens.Count];
         var argmax = new int[tokens.Count];
 
+        var windows = new List<(int Offset, List<Tok> Window)>();
         for (var offset = 0; offset < tokens.Count; offset += MaxTokens)
+            windows.Add((offset, tokens.Skip(offset).Take(MaxTokens).ToList()));
+
+        Parallel.ForEach(windows, wr =>
         {
-            var window = tokens.Skip(offset).Take(MaxTokens).ToList();
+            var offset = wr.Offset;
+            var window = wr.Window;
             var ids = VocabIdsFor(window, _vocab);
             var len = ids.Ids.Count;
             var mask = ids.Ids.Select(_ => 1L).ToArray();
@@ -279,7 +302,7 @@ public static class Ner
                 if (pos >= 1 && pos <= window.Count && tokIdx >= 0 && tokIdx < tokens.Count)
                 { probs[tokIdx] = sum > 0 ? Math.Exp(max - Math.Log(sum)) : 0; argmax[tokIdx] = arg; }
             }
-        }
+        });
 
         if (tokens.Count == 0) return (text, new List<Finding>());
 

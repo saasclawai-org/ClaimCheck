@@ -57,6 +57,7 @@ public static class Status
         var running = Probe(port, out live);
 
         var (nerMode, nerCached) = NerStatus();
+        if (live?.NerProvider is { } prov) nerMode += " · " + prov;
         return new Info(
             Version,
             running,
@@ -226,5 +227,6 @@ public static class Status
         [property: JsonPropertyName("ner")] bool Ner,
         [property: JsonPropertyName("failClosed")] bool FailClosed,
         [property: JsonPropertyName("nerFailed")] bool? NerFailed,
-        [property: JsonPropertyName("nerFailReason")] string? NerFailReason);
+        [property: JsonPropertyName("nerFailReason")] string? NerFailReason,
+        [property: JsonPropertyName("nerProvider")] string? NerProvider);
 }
