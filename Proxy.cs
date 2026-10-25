@@ -138,6 +138,8 @@ public static class Proxy
             lastRequestUtc = LastRequestUtc,
             ner = Ner.Enabled,
             failClosed = FailClosed,
+            nerFailed = Ner.Failed,
+            nerFailReason = Ner.FailReason,
             startedUtc = StartedUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'"),
         }));
         app.Map("/{**path}", async (HttpContext ctx, string? path) =>

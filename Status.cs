@@ -47,7 +47,9 @@ public static class Status
         bool ProxyVersionOld,
         string NerMode,
         string VaultSummary,
-        string[] McpWiring);
+        string[] McpWiring,
+        bool? NerFailed,
+        string? NerFailReason);
 
     public static Info Collect(int port)
     {
@@ -72,7 +74,8 @@ public static class Status
             running && live is null,
             nerMode,
             VaultSummary(),
-            McpWiring());
+            McpWiring(),
+            live?.NerFailed, live?.NerFailReason);
     }
 
     private static bool Probe(int port, out ProxyStatusDto? status)
@@ -193,6 +196,11 @@ public static class Status
             Console.Out.WriteLine("           Windows: install.ps1 -WithProxy registers it at logon (tray icon).");
         }
         Console.Out.WriteLine($"scrub NER  {i.NerMode}");
+        if (i.NerFailed == true)
+        {
+            Console.Out.WriteLine($"           NER FAILED: {i.NerFailReason}");
+            Console.Out.WriteLine("           -> fix the cause, then restart the proxy/tray to retry");
+        }
         if (i.FailClosed is { } fc2 && !i.ProxyRunning) Console.Out.WriteLine($"fail-closed: {(fc2 ? "on" : "OFF")}");
         Console.Out.WriteLine($"vault dir  {i.VaultSummary}");
         Console.Out.WriteLine("MCP wiring " + (i.McpWiring.Length == 0
@@ -212,5 +220,7 @@ public static class Status
         [property: JsonPropertyName("lastRequestUtc")] string? LastRequestUtc,
         [property: JsonPropertyName("startedUtc")] string? StartedUtc,
         [property: JsonPropertyName("ner")] bool Ner,
-        [property: JsonPropertyName("failClosed")] bool FailClosed);
+        [property: JsonPropertyName("failClosed")] bool FailClosed,
+        [property: JsonPropertyName("nerFailed")] bool? NerFailed,
+        [property: JsonPropertyName("nerFailReason")] string? NerFailReason);
 }

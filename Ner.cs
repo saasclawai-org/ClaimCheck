@@ -35,6 +35,10 @@ public static class Ner
     private static Dictionary<string, int>? _vocab;
     private static string[]? _id2label;
     private static bool _failed;
+    /// <summary>Set when model init fails this run - surfaced via /status and the
+    /// status verb so silent NER degradation is visible to the user.</summary>
+    public static string? FailReason { get; private set; }
+    public static bool Failed => _failed;
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(15) };
 
@@ -99,11 +103,13 @@ public static class Ner
 
                 _session = new InferenceSession(modelPath);
                 Console.Error.WriteLine($"claimcheck ner: ready ({_vocab.Count} vocab, {_id2label.Length} labels)");
+                FailReason = null;
             }
             catch (Exception e)
             {
                 Console.Error.WriteLine($"claimcheck ner: model init failed, NER disabled this run — {e.Message}");
                 _failed = true;
+                FailReason = e.Message;
             }
         }
     }
