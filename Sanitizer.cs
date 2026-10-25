@@ -68,7 +68,7 @@ public static class Sanitizer
         ("IMEI",           new Regex(@"(?i)\b(?:imei)\s*(?:no\.?|number|#)?\s*[:=]?\s*\d{15}\b"), s => Sanitizer.Luhn(s[^15..])),
         ("CARD",       new Regex(@"(?<!\d)(?:\d[ -]?){13,19}(?!\d)"), Luhn),
         ("PHONE",      new Regex(@"(?<![\d-])(\+?1[-. ])?(\(\d{3}\)[- ]|\d{3}[-. ])\d{3}[-. ]\d{4}(?!\d)"), null),
-        ("IBAN",       new Regex(@"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}\b"), null),
+        ("IBAN",       new Regex(@"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{2,4})?\b"), null),
         ("AWS_KEY",    new Regex(@"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), null),
         ("GH_TOKEN",   new Regex(@"\bgh[pousr]_[A-Za-z0-9]{36,255}\b"), null),
         ("API_KEY",    new Regex(@"\bsk[-_][A-Za-z0-9_-]{16,}\b"), null),

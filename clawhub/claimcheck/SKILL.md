@@ -1,7 +1,7 @@
 ---
 name: claimcheck
 description: Sanitize PII/secrets (FEIN, SSN, names, credentials) from text or files with the local ClaimCheck CLI before anything leaves the machine; reversible via the local vault.
-version: 1.0.3
+version: 1.0.4
 metadata:
   openclaw:
     emoji: "🛡️"
