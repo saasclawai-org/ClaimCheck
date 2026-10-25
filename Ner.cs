@@ -57,6 +57,9 @@ public static class Ner
         lock (Gate)
         {
             if (_session is not null || _failed) return;
+            // ORT thread pools busy-spin waiting for work by default; on an always-on
+            // proxy that burned ~1.2 cores continuously. Disable spinning + cap threads.
+            Environment.SetEnvironmentVariable("ORT_DISABLE_SPINNING", "1");
             try
             {
                 Directory.CreateDirectory(ModelDir);
@@ -101,7 +104,10 @@ public static class Ner
                     catch { }
                 }
 
-                _session = new InferenceSession(modelPath);
+                var so = new SessionOptions();
+                so.IntraOpNumThreads = 2;   // small model: 2 threads keeps latency, saves cores
+                so.InterOpNumThreads = 1;
+                _session = new InferenceSession(modelPath, so);
                 Console.Error.WriteLine($"claimcheck ner: ready ({_vocab.Count} vocab, {_id2label.Length} labels)");
                 FailReason = null;
             }

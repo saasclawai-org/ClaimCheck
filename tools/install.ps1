@@ -76,6 +76,12 @@ try {
         Write-Host "Stopped ClaimCheckProxy task (was holding the previous exe)."
     }
 
+    # Purge stale native dlls from earlier loose-dll installs: a leftover old
+    # onnxruntime.dll in the app dir shadows the one bundled in the new exe and
+    # breaks NER init ("requested API version not available").
+    Get-ChildItem -Path $InstallDir -Filter "onnxruntime*.dll" -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+
     try {
         Copy-Item (Join-Path $tmp "ClaimCheck.exe") $target -Force
         $traySource = Join-Path $tmp "ClaimCheckTray.exe"
