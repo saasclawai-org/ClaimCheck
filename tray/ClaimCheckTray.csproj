@@ -9,7 +9,7 @@
     <!-- Cross-build from Linux for the win-x64 release zip -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>ClaimCheckTray</AssemblyName>
-    <Version>0.5.0</Version>
+    <Version>0.5.1</Version>
     <ApplicationIcon>../ClaimCheck.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -22,6 +22,7 @@
   <ItemGroup>
     <EmbeddedResource Include="../icons/claimcheck-ok.ico" Link="icons/claimcheck-ok.ico" />
     <EmbeddedResource Include="../icons/claimcheck-off.ico" Link="icons/claimcheck-off.ico" />
+    <EmbeddedResource Include="../icons/claimcheck-update.ico" Link="icons/claimcheck-update.ico" />
   </ItemGroup>
 
 </Project>

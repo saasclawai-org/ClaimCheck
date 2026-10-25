@@ -32,6 +32,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly ToolStripMenuItem _nerItem;
     private System.Windows.Forms.Timer? _updateTimer;
     private volatile bool _updateAvailable;
+    private volatile bool _updating;
 
     public TrayApp(string[] args)
     {
@@ -110,6 +111,13 @@ internal sealed class TrayApp : ApplicationContext
         catch { ok = false; }
 
         _running = ok;
+        if (_updating)
+        {
+            // stable amber state while the wrapper installs — no scary red flapping
+            _icon.Icon = Icons.Update;
+            _icon.Text = $"ClaimCheck: updating to v{UpdateChecker.Latest ?? "(new)"} — proxy paused, tray returns on the new build";
+            return;
+        }
         _icon.Icon = ok ? Icons.Ok : Icons.Off;
         if (ok)
         {
@@ -200,8 +208,17 @@ internal sealed class TrayApp : ApplicationContext
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
-        _icon.Text = "ClaimCheck: updating…";
-        Task.Delay(1500).ContinueWith(_ => ExitTray());
+        // Amber state + a notification that survives the tray exit (Windows locks the
+        // running exe, so the tray must disappear during the file swap; the Scheduled
+        // Task relaunches the new build, which shows its own starting state).
+        _updating = true;
+        _updateAvailable = false;
+        _icon.Icon = Icons.Update;
+        _icon.Text = $"ClaimCheck: installing v{v} — proxy paused, tray returns automatically";
+        _icon.ShowBalloonTip(8000, "ClaimCheck update",
+            $"Installing v{v}. The proxy pauses briefly and the tray reappears on the new build.",
+            ToolTipIcon.Info);
+        Task.Delay(3500).ContinueWith(_ => ExitTray());
     }
 
     private void NerToggled()
@@ -246,7 +263,7 @@ internal sealed class TrayApp : ApplicationContext
         try
         {
             _timer.Stop();
-            _icon.Visible = false;
+            if (!_updating) _icon.Visible = false; // keep the balloon alive across the swap
             if (_app is not null)
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -264,6 +281,7 @@ internal static class Icons
 {
     public static readonly Icon Ok = Load("claimcheck-ok.ico");
     public static readonly Icon Off = Load("claimcheck-off.ico");
+    public static readonly Icon Update = Load("claimcheck-update.ico");
 
     private static Icon Load(string name)
     {
