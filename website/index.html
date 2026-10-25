@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClaimCheck — local-first PII pseudonymization for AI agents</title>
+<meta name="description" content="ClaimCheck masks secrets and PII before they reach the model — and restores them after the answer. Local-only, reversible via a local vault, no telemetry. MIT-0.">
+<link rel="canonical" href="https://claimcheck.saasclaw.ai/">
+<meta property="og:title" content="ClaimCheck — local-first PII pseudonymization for AI agents">
+<meta property="og:description" content="Mask secrets and PII before they reach the model. Reversible via a local vault. No telemetry, no accounts, nothing leaves the machine.">
+<meta property="og:url" content="https://claimcheck.saasclaw.ai/">
+<meta property="og:type" content="website">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0d1117; color: #c9d1d9; font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+  a { color: #2dd4bf; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1px 6px; font-size: .9em; }
+  header { border-bottom: 1px solid #21262d; padding: 14px 0; }
+  header .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .brand { font-weight: 700; color: #e6edf3; font-size: 17px; }
+  nav a { margin-left: 18px; color: #8b949e; font-size: 14px; }
+  nav a:hover { color: #2dd4bf; }
+  .hero { padding: 72px 0 56px; }
+  h1 { color: #e6edf3; font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px; }
+  .ph { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: rgba(45,212,191,.12); border: 1px solid rgba(45,212,191,.45); color: #2dd4bf; border-radius: 8px; padding: 2px 10px; font-size: .82em; white-space: nowrap; }
+  .sub { font-size: 19px; color: #8b949e; margin: 0 0 28px; max-width: 640px; }
+  .install { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px 18px; color: #7ee2d0; font-size: 13.5px; overflow-x: auto; white-space: nowrap; }
+  .hint { color: #6e7681; font-size: 13.5px; margin: 10px 0 26px; }
+  .cta .btn { display: inline-block; margin: 0 10px 10px 0; padding: 9px 18px; border-radius: 8px; border: 1px solid #30363d; color: #e6edf3; font-weight: 600; font-size: 14.5px; }
+  .cta .btn:hover { border-color: #2dd4bf; text-decoration: none; }
+  section { padding: 34px 0; border-top: 1px solid #21262d; }
+  h2 { color: #e6edf3; font-size: 24px; margin: 0 0 14px; }
+  p { margin: 0 0 14px; }
+  ol li, ul li { margin-bottom: 10px; }
+  .cta-final { text-align: center; padding: 44px 0; }
+  .cta-final h2 { margin-bottom: 20px; }
+  footer { border-top: 1px solid #21262d; padding: 26px 0 40px; color: #6e7681; font-size: 13.5px; }
+  footer p { margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand">🛡️ ClaimCheck</div>
+    <nav>
+      <a href="#install">Install</a>
+      <a href="#how">How it works</a>
+      <a href="#catches">What it catches</a>
+      <a href="#trust">Trust</a>
+      <a href="https://github.com/saasclawai-org/ClaimCheck">GitHub</a>
+    </nav>
+  </div>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <h1>Your AI assistant doesn't need your client's <span class="ph">[FEIN_1]</span></h1>
+    <p class="sub">ClaimCheck masks secrets and PII before they reach the model — and restores them after the answer. Local-only. Reversible. No telemetry.</p>
+    <div class="install" id="install">irm https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.ps1 | iex</div>
+    <p class="hint">Windows one-liner · macOS/Linux: <code>dotnet publish</code> from source · also runs as MCP tools and a scrubbing proxy</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/saasclawai-org/ClaimCheck">GitHub</a>
+      <a class="btn" href="https://clawhub.ai/normandmickey/skills/claimcheck">ClawHub</a>
+      <a class="btn" href="https://github.com/saasclawai-org/ClaimCheck/releases">Releases</a>
+    </div>
+  </section>
+
+  <section id="problem">
+    <h2>The leak nobody budgets for</h2>
+    <p>AI coding assistants log, cache, and sometimes retain what you paste. Client tickets, payroll runs, API keys, <code>.env</code> files — the moment they hit the chat, they're on someone else's servers, subject to someone else's retention policy.</p>
+    <p>Redaction tools that just delete the data kill the work: the model needs the <em>shape</em> of your data to help you. ClaimCheck keeps the shape and drops the exposure.</p>
+  </section>
+
+  <section id="how">
+    <h2>Mask → work → restore</h2>
+    <ol>
+      <li><strong>Mask.</strong> Sensitive values become stable placeholders — <code>[FEIN_1]</code>, <code>[SSN_2]</code>, <code>[PERSON_1]</code> — before the request leaves your machine. The mapping stays in a local vault file.</li>
+      <li><strong>Work.</strong> The model reasons over placeholders. Same value, same placeholder, every time — references and context stay consistent across the whole session.</li>
+      <li><strong>Restore.</strong> The response crosses back through the vault and placeholders become real values again. Locally.</li>
+    </ol>
+    <p>Three ways to run it: <strong>MCP tools</strong> your agent calls directly (Cline, Claude Code, OpenClaw), a <strong>CLI</strong> for files and pipes, or a <strong>scrubbing proxy</strong> that sits between any OpenAI-compatible client and its provider and sanitizes everything on the wire — with a fail-closed posture: if scrubbing fails, the request is held, not forwarded.</p>
+  </section>
+
+  <section id="catches">
+    <h2>What it catches</h2>
+    <p>22 recognizer types, deterministic, validated, no cloud calls: SSNs · FEINs/EINs · emails · API keys (OpenAI, AWS, Slack, GitHub) · JWTs · passwords · PEM private keys · card numbers + CVV + expiry · IBAN · bank routing · bank accounts · phone numbers · IP addresses · street addresses · dates of birth · passports · driver's licenses · medical licenses · insurance member IDs.</p>
+    <p>An opt-in NER tier adds free-text names, organizations and locations via a local ONNX model — cached once, no uploads, no API calls.</p>
+  </section>
+
+  <section id="trust">
+    <h2>Why trust it</h2>
+    <ul>
+      <li><strong>No account. No API key. No telemetry.</strong> Nothing phones home — ever.</li>
+      <li><strong>Fail-closed.</strong> A scrub failure holds the request instead of forwarding raw text.</li>
+      <li><strong>Open source.</strong> MIT-0. The whole engine is on GitHub — audit it, fork it, self-host it.</li>
+      <li><strong>Honest limits.</strong> ClaimCheck protects the model-provider hop. Whatever reached a chat surface before the sanitizer ran was already seen — the docs state this plainly instead of hiding it.</li>
+    </ul>
+  </section>
+
+  <section id="roadmap">
+    <h2>Roadmap</h2>
+    <p><strong>Shipped:</strong> scrubbing proxy · NER tier · MCP tools · atomic vaults · Windows installer · field-proven on three deployments.<br>
+    <strong>Next:</strong> prompt-injection classifier tier · tool-call guard · team audit trail (Pro).</p>
+  </section>
+
+  <section class="cta-final">
+    <h2>Stop pasting your client's [FEIN_1] into someone else's servers.</h2>
+    <div class="cta">
+      <a class="btn" href="https://github.com/saasclawai-org/ClaimCheck">Get it on GitHub</a>
+      <a class="btn" href="https://clawhub.ai/normandmickey/skills/claimcheck">Install from ClawHub</a>
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="wrap">
+    <p>© 2026 saasclawai-org · MIT-0 · This page sets no cookies and runs no analytics.</p>
+    <p><a href="https://github.com/saasclawai-org/ClaimCheck">GitHub</a> · <a href="https://github.com/saasclawai-org/ClaimCheck/releases">Releases</a> · <a href="https://clawhub.ai/normandmickey/skills/claimcheck">ClawHub</a></p>
+  </div>
+</footer>
+</body>
+</html>

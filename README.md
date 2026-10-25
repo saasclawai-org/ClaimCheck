@@ -2,6 +2,8 @@
 
 **Check your PII at the door. Your LLM gets claim tickets.**
 
+🌐 **[claimcheck.saasclaw.ai](https://claimcheck.saasclaw.ai)** — project site · [ClawHub listing](https://clawhub.ai/normandmickey/skills/claimcheck) · [Releases](https://github.com/saasclawai-org/ClaimCheck/releases)
+
 ClaimCheck is a local-first pseudonymization gate for LLM workflows. One self-contained
 binary, two modes:
 

@@ -5,7 +5,7 @@ version: 1.0.1
 metadata:
   openclaw:
     emoji: "🛡️"
-    homepage: https://github.com/saasclawai-org/ClaimCheck
+    homepage: https://claimcheck.saasclaw.ai
     envVars:
       - name: SANITIZE_NER
         required: false

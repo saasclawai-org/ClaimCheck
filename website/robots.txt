@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://claimcheck.saasclaw.ai/sitemap.xml
