@@ -38,7 +38,7 @@ internal static class TrayConfig
     }
 
     private static void Apply() =>
-        Environment.SetEnvironmentVariable("SANITIZE_NER", NerEnabled ? "1" : null);
+        Environment.SetEnvironmentVariable("SANITIZE_NER", NerEnabled ? "1" : "0");
 }
 
 /// <summary>GitHub release check + self-update staging. Update = download the official

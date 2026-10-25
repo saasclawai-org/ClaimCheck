@@ -11,12 +11,12 @@ namespace ClaimCheck;
 /// Local NER tier: a small English NER model (ONNX) that catches free-text
 /// names, organizations and locations that regex cannot see. The model is
 /// downloaded once on first use and cached under ~/.claimcheck/models/.
-/// Gated by SANITIZE_NER=1 (off by default — first use downloads ~110 MB).
+/// ON by default (v0.5.0+); set SANITIZE_NER=0 to disable.
 /// </summary>
 public static class Ner
 {
     public static bool Enabled =>
-        Environment.GetEnvironmentVariable("SANITIZE_NER") is "1" or "on" or "true";
+        Environment.GetEnvironmentVariable("SANITIZE_NER") is not ("0" or "off" or "false");
 
     public static double Threshold { get; } =
         double.TryParse(Environment.GetEnvironmentVariable("SANITIZE_NER_THRESHOLD"), out var t) ? Math.Clamp(t, 0.05, 0.99) : 0.5;

@@ -97,12 +97,12 @@ public static class Status
 
     private static (string Mode, bool Cached) NerStatus()
     {
-        if (!Ner.Enabled) return ("off (SANITIZE_NER=1 to enable)", false);
+        if (!Ner.Enabled) return ("off (SANITIZE_NER=0 to disable)", false);
         var modelDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claimcheck", "models",
             string.Join('_', Ner.ModelRepo.Split('/')));
         var cached = Directory.Exists(modelDir) && Directory.EnumerateFiles(modelDir).Any();
-        return (cached ? "on (model cached)" : "on (model downloads on first use)", cached);
+        return (cached ? "on (model cached)" : "on (model downloads on first use, ~110 MB)", cached);
     }
 
     private static string VaultSummary()

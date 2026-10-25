@@ -4,6 +4,7 @@ Mirrors test_client.py asserts + one extra: placeholder parity with the Python v
 (same project root -> same vault file -> identical placeholders from either implementation)."""
 import asyncio
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -22,7 +23,8 @@ NOT_PII = ["server_port = 8080", "version = 1.2.3", "theme_color = #ff00ff",
 PH_RE = re.compile(r"\[[A-Z_]+_\d+\]")
 
 async def main() -> None:
-    params = StdioServerParameters(command="dotnet", args=[str(DLL)], cwd=str(HERE))
+    params = StdioServerParameters(command="dotnet", args=[str(DLL)], cwd=str(HERE),
+                                env=dict(os.environ, SANITIZE_NER="0"))
     async with stdio_client(params) as (r, w):
         async with ClientSession(r, w) as s:
             await s.initialize()

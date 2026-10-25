@@ -59,7 +59,7 @@ def free_port():
 def start_proxy(upstream, home, extra=()):
     global ERRLOG
     port = free_port()
-    env = dict(os.environ, HOME=home)
+    env = dict(os.environ, HOME=home, SANITIZE_NER="0")
     err = tempfile.NamedTemporaryFile(prefix="cc-vc-stderr-", suffix=".log", delete=False)
     proc = subprocess.Popen(
         ["dotnet", DLL, "--proxy", "--upstream", upstream, "--port", str(port), *extra],

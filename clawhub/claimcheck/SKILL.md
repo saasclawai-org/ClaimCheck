@@ -1,7 +1,7 @@
 ---
 name: claimcheck
 description: Sanitize PII/secrets (FEIN, SSN, names, credentials) from text or files with the local ClaimCheck CLI before anything leaves the machine; reversible via the local vault.
-version: 1.0.2
+version: 1.0.3
 metadata:
   openclaw:
     emoji: "🛡️"
@@ -9,7 +9,7 @@ metadata:
     envVars:
       - name: SANITIZE_NER
         required: false
-        description: Set to 1 to enable the NER tier (free-text names/orgs/locations; ~109MB model cached on first use).
+        description: On by default. Set to 0 to disable the NER tier (free-text names/orgs/locations; ~109MB model cached on first use).
 ---
 
 # ClaimCheck — local PII pseudonymization
@@ -62,7 +62,7 @@ insurance member IDs. Custom patterns: .sanitize-patterns.json (see repo README)
 2. Never paste raw FEIN/SSN/card/credential values into chat, logs, or commits.
 3. The vault lives in ~/.sanitize-mcp/vaults (plaintext, local). Treat the machine
    as the trust boundary.
-4. NER tier (free-text names/orgs/locations): set SANITIZE_NER=1 env — model
+4. NER tier (free-text names/orgs/locations): on by default; SANITIZE_NER=0 disables — model
    (~109MB) cached in ~/.claimcheck/models.
 5. Not 100% — verify sanitized output before high-stakes sharing (DISCLAIMER.md in
    the repo).

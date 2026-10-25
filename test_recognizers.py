@@ -46,6 +46,7 @@ TEXT = (
     "api key: sk-live-a1b2c3d4e5f6g7h8i9\n"
     "bank acct no: 12345678\n"
     "account #12344\ncustomer #98765\n"
+    "seen 03/15/2024\nvin 1HGCM82633A004352\nimei 490154203237518\n"
 )
 
 async def main():
@@ -60,7 +61,7 @@ async def main():
             expect = {"JWT", "PASSWORD", "API_KEY", "FEIN", "SSN",
                       "EMAIL", "CARD", "IBAN", "AWS_KEY", "GH_TOKEN", "SLACK_TOKEN",
                       "CVV", "EXPIRY", "DOB", "PASSPORT", "DL", "ROUTING", "IP",
-                      "ADDRESS", "MEDICAL_LICENSE", "INSURANCE_ID", "ACCOUNT", "ID_LABEL"}
+                      "ADDRESS", "MEDICAL_LICENSE", "INSURANCE_ID", "ACCOUNT", "ID_LABEL", "DATE", "IMEI", "VIN"}
             missing = expect - types
             assert not missing, f"missing recognizers: {missing} (got {sorted(types)})"
             # PEM blocks report via summary count (like encoded blobs), not findings

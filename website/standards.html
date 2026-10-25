@@ -74,22 +74,22 @@
     <p>The most-cited identifier enumeration (45 CFR §164.514(b)(2)). ClaimCheck is a general-purpose tool, not a HIPAA compliance product — but the list is the industry's shared vocabulary for "what counts as PII," so here is recognizer-by-recognizer coverage:</p>
     <table>
       <tr><th>#</th><th>Safe Harbor identifier</th><th>Coverage</th><th>Recognizers</th></tr>
-      <tr><td>1</td><td>Names</td><td class="p">Partial</td><td>NER person/org (opt-in, local model)</td></tr>
+      <tr><td>1</td><td>Names</td><td class="p">Partial</td><td>NER person/org (local model, on by default)</td></tr>
       <tr><td>2</td><td>Geography &lt; state (street, city, ZIP)</td><td class="p">Partial</td><td>ADDRESS (US street form), NER locations</td></tr>
-      <tr><td>3</td><td>Dates (except year) related to an individual</td><td class="p">Partial</td><td>DOB, EXPIRY (labeled dates; not arbitrary prose dates)</td></tr>
+      <tr><td>3</td><td>Dates (except year) related to an individual</td><td class="y">Covered</td><td>DOB, EXPIRY, DATE (numeric + named-month forms; bare years untouched per Safe Harbor)</td></tr>
       <tr><td>4</td><td>Telephone numbers</td><td class="y">Covered</td><td>PHONE</td></tr>
       <tr><td>5</td><td>Fax numbers</td><td class="y">Covered</td><td>PHONE (same pattern)</td></tr>
       <tr><td>6</td><td>Email addresses</td><td class="y">Covered</td><td>EMAIL</td></tr>
       <tr><td>7</td><td>Social Security numbers</td><td class="y">Covered</td><td>SSN</td></tr>
-      <tr><td>8</td><td>Medical record numbers</td><td class="p">Partial</td><td>ID_LABEL (labeled forms, e.g. <code>MRN 123456</code>)</td></tr>
+      <tr><td>8</td><td>Medical record numbers</td><td class="y">Covered</td><td>ID_LABEL (<code>mrn</code>/<code>record</code> labels)</td></tr>
       <tr><td>9</td><td>Health plan beneficiary numbers</td><td class="y">Covered</td><td>INSURANCE_ID</td></tr>
       <tr><td>10</td><td>Account numbers</td><td class="y">Covered</td><td>ACCOUNT, ID_LABEL</td></tr>
       <tr><td>11</td><td>Certificate/license numbers</td><td class="y">Covered</td><td>DL, MEDICAL_LICENSE</td></tr>
-      <tr><td>12</td><td>Vehicle identifiers / serial numbers</td><td class="n">Not covered</td><td>—</td></tr>
-      <tr><td>13</td><td>Device identifiers / serial numbers</td><td class="n">Not covered</td><td>—</td></tr>
+      <tr><td>12</td><td>Vehicle identifiers / serial numbers</td><td class="y">Covered</td><td>VIN (17-char, I/O/Q excluded)</td></tr>
+      <tr><td>13</td><td>Device identifiers / serial numbers</td><td class="y">Covered</td><td>IMEI (Luhn-validated), ID_LABEL (<code>serial</code>/<code>device</code> labels)</td></tr>
       <tr><td>14</td><td>URLs</td><td class="n">Not treated as PII</td><td>—</td></tr>
       <tr><td>15</td><td>IP addresses</td><td class="y">Covered</td><td>IP</td></tr>
-      <tr><td>16</td><td>Biometric identifiers</td><td class="n">Not covered</td><td>—</td></tr>
+      <tr><td>16</td><td>Biometric identifiers</td><td class="p">Partial</td><td>ID_LABEL (labeled mentions, e.g. <code>fingerprint #</code>)</td></tr>
       <tr><td>17</td><td>Full-face photos</td><td class="n">N/A</td><td>text-only tool</td></tr>
       <tr><td>18</td><td>Any other unique identifying number/characteristic</td><td class="p">Partial</td><td>ID_LABEL, FEIN, ROUTING, IBAN, CARD (Luhn-checked)</td></tr>
     </table>
@@ -125,11 +125,11 @@
       <li><strong>Pseudonymized ≠ anonymous.</strong> Anyone with the vault can restore everything. Treat the vault as the crown jewels: same sensitivity as the original data, on your disk.</li>
       <li><strong>Alignment ≠ certification.</strong> No certification path exists for PII-detection tools. ClaimCheck uses the standards' vocabulary and identifier lists; it is not "HIPAA certified" (that phrase doesn't exist for software) or PCI-certified.</li>
       <li><strong>Detection is probabilistic.</strong> Regex + an optional local NER model catch common shapes. Novel formats, unlabeled free-text identifiers, and heavily encoded values can slip through. Use the smoke-test prompt to validate against <em>your</em> data shapes.</li>
-      <li><strong>Dates are partial.</strong> Labeled dates (DOB, expiry) are caught; a bare date in prose generally is not.</li>
-      <li><strong>Vehicle, device and biometric identifiers are out of scope</strong> for text scrubbing today.</li>
+      <li><strong>Named dates are covered; contexts are not inferred.</strong> A date next to your name is masked — but so is the same date standing alone. Date-of-birth detection is label- and shape-based.</li>
+      <li><strong>Vehicle and device identifiers are covered in their labeled forms</strong> (VIN, IMEI, <code>serial:</code>) — an unlabeled serial number in prose can still slip through.</li>
       <li><strong>Complementary, not a DLP replacement.</strong> Email filters and DLP gateways enforce policy on the wire; ClaimCheck removes the PII before the wire exists. Use both.</li>
     </ul>
-    <div class="note">Coverage current as of ClaimCheck v0.4.3 (23 recognizer types + optional local NER). The full recognizer set ships in the open-source repo — every claim on this page is checkable against <code>Sanitizer.cs</code>.</div>
+    <div class="note">Coverage current as of ClaimCheck v0.5.0 (26 recognizer types + local NER on by default). The full recognizer set ships in the open-source repo — every claim on this page is checkable against <code>Sanitizer.cs</code>.</div>
   </section>
 </main>
 <footer>
