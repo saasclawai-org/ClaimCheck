@@ -55,10 +55,15 @@ try {
     # --- 3. Install (with backup + lock handling) -----------------------------
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
     $target = Join-Path $InstallDir "ClaimCheck.exe"
+    $trayTarget = Join-Path $InstallDir "ClaimCheckTray.exe"
 
     if (Test-Path $target) {
         Copy-Item $target "$target.bak" -Force
         Write-Host "Backed up previous exe -> ClaimCheck.exe.bak"
+    }
+    if (Test-Path $trayTarget) {
+        Copy-Item $trayTarget "$trayTarget.bak" -Force
+        Write-Host "Backed up previous tray app -> ClaimCheckTray.exe.bak"
     }
 
     # Release the exe lock held by the logon proxy task (if any) before copying.
@@ -71,9 +76,13 @@ try {
 
     try {
         Copy-Item (Join-Path $tmp "ClaimCheck.exe") $target -Force
+        $traySource = Join-Path $tmp "ClaimCheckTray.exe"
+        if (Test-Path $traySource) {
+            Copy-Item $traySource $trayTarget -Force
+        }
     } catch {
         Write-Host ""
-        Write-Host "ClaimCheck.exe is locked. Close VS Code (Cline may be running the server) and re-run this script." -ForegroundColor Yellow
+        Write-Host "A ClaimCheck executable is locked. Close VS Code and the ClaimCheck tray app, then re-run this script." -ForegroundColor Yellow
         exit 1
     }
     Copy-Item (Join-Path $tmp "INSTALL.txt") (Join-Path $InstallDir "INSTALL.txt") -Force -ErrorAction SilentlyContinue
@@ -94,7 +103,7 @@ if ($userPath -notlike "*$InstallDir*") {
 
 # Optional: on-wire enforcement — run the scrub proxy at logon
 if ($WithProxy) {
-    $trayExe = Join-Path $InstallDir "ClaimCheckTray.exe"
+    $trayExe = $trayTarget
     $useTray = Test-Path $trayExe
     $proxyExe = if ($useTray) { $trayExe } else { $target }
     $proxyArgs = "--proxy --upstream `"$ProxyUpstream`" --port $ProxyPort"
