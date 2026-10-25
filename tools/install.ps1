@@ -68,6 +68,7 @@ try {
 
     # Release the exe lock held by the logon proxy task (if any) before copying.
     $proxyTask = Get-ScheduledTask -TaskName "ClaimCheckProxy" -ErrorAction SilentlyContinue
+    $taskWasInstalled = $null -ne $proxyTask
     if ($proxyTask -and $proxyTask.State -ne "Disabled") {
         Stop-ScheduledTask -TaskName "ClaimCheckProxy" -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 1
@@ -127,6 +128,12 @@ if ($WithProxy) {
         Write-Host "Manual fallback - put this command in your Startup folder (Win+R -> shell:startup):" -ForegroundColor Yellow
         Write-Host "  `"$target`" $proxyArgs"
     }
+}
+
+# Plain update: restore the proxy task we stopped for the swap (no -WithProxy needed).
+if ($taskWasInstalled -and -not $WithProxy) {
+    Start-ScheduledTask -TaskName "ClaimCheckProxy" -ErrorAction SilentlyContinue
+    Write-Host "Restarted the ClaimCheckProxy task on the updated build."
 }
 
 # --- 4. Wire up Cline MCP config automatically --------------------------------
