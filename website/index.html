@@ -83,6 +83,15 @@
     <p>Three ways to run it: <strong>MCP tools</strong> your agent calls directly (Cline, Claude Code, OpenClaw), a <strong>CLI</strong> for files and pipes, or a <strong>scrubbing proxy</strong> that sits between any OpenAI-compatible client and its provider and sanitizes everything on the wire — with a fail-closed posture: if scrubbing fails, the request is held, not forwarded.</p>
   </section>
 
+  <section id="cline">
+    <h2>Cline integration</h2>
+    <p>Cline users get ClaimCheck in one of two ways — both local, both reversible:</p>
+    <ul>
+      <li><strong>MCP tools.</strong> Add the ClaimCheck MCP server to Cline's MCP settings; the model then reads files <em>through</em> it and receives scrubbed content with stable placeholders instead of raw identities. The exact <code>mcpServers</code> JSON is in the <a href="https://github.com/saasclawai-org/ClaimCheck/blob/main/llms-install.md">install guide</a>.</li>
+      <li><strong>Scrubbing proxy.</strong> Install with <code>-WithProxy</code> and point Cline's model provider Base URL at <code>http://127.0.0.1:8766/api/coding/paas/v4</code> — every request to the model is scrubbed on the wire, and every response is restored before the editor sees it.</li>
+    </ul>
+  </section>
+
   <section id="catches">
     <h2>What it catches</h2>
     <p>22 recognizer types, deterministic, validated, no cloud calls: SSNs · FEINs/EINs · emails · API keys (OpenAI, AWS, Slack, GitHub) · JWTs · passwords · PEM private keys · card numbers + CVV + expiry · IBAN · bank routing · bank accounts · phone numbers · IP addresses · street addresses · dates of birth · passports · driver's licenses · medical licenses · insurance member IDs.</p>
