@@ -31,6 +31,7 @@ param(
     [switch]$EnableNER,
     [switch]$WithProxy,
     [string]$ProxyUpstream = "https://api.z.ai/api/coding/paas/v4/",
+    [string]$Provider = "",
     [int]$ProxyPort = 8766
 )
 $ErrorActionPreference = "Stop"
@@ -103,6 +104,16 @@ if ($userPath -notlike "*$InstallDir*") {
 }
 
 # Optional: on-wire enforcement — run the scrub proxy at logon
+$providerUpstreams = @{
+    zai        = "https://api.z.ai/api/coding/paas/v4/"
+    openai     = "https://api.openai.com/v1/"
+    anthropic  = "https://api.anthropic.com/v1/"
+    openrouter = "https://openrouter.ai/api/v1/"
+}
+if ($Provider) {
+    if ($providerUpstreams.ContainsKey($Provider)) { $ProxyUpstream = $providerUpstreams[$Provider] }
+    else { Write-Host "Unknown -Provider '$Provider' (use: $($providerUpstreams.Keys -join ', ')) - keeping default upstream." -ForegroundColor Yellow }
+}
 if ($WithProxy) {
     $trayExe = $trayTarget
     $useTray = Test-Path $trayExe

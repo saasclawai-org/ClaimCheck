@@ -48,6 +48,7 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Open vault folder", null, (_, _) => OpenVault());
         menu.Items.Add(_nerItem);
+        menu.Items.Add("Provider setup…", null, (_, _) => new ProviderForm(_port).Show());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Restart proxy", null, (_, _) => _ = Restart());
         menu.Items.Add(_updateItem);
@@ -304,10 +305,19 @@ internal sealed class StatusForm : Form
             Font = new Font(FontFamily.GenericMonospace, 9.5f),
             BackColor = Color.White,
         };
-        var refresh = new Button { Text = "Refresh", Dock = DockStyle.Bottom };
+        var buttons = new Panel { Dock = DockStyle.Bottom, Height = 40 };
+        var refresh = new Button { Text = "Refresh", Left = 8, Top = 8, Width = 100 };
         refresh.Click += (_, _) => RefreshStatus();
+        var copy = new Button { Text = "Copy client Base URL", Left = 116, Top = 8, Width = 170 };
+        copy.Click += (_, _) =>
+        {
+            try { Clipboard.SetText(ClientBaseUrl(Status.Collect(_port))); }
+            catch { /* clipboard can be locked */ }
+        };
+        buttons.Controls.Add(refresh);
+        buttons.Controls.Add(copy);
         Controls.Add(_text);
-        Controls.Add(refresh);
+        Controls.Add(buttons);
         RefreshStatus();
     }
 
@@ -338,6 +348,76 @@ internal sealed class StatusForm : Form
         lines.Add("MCP wiring:");
         if (i.McpWiring.Length == 0) lines.Add("  none detected");
         else foreach (var w in i.McpWiring) lines.Add("  " + w);
+        lines.Add("");
+        lines.Add($"client url  {ClientBaseUrl(i)}   <- copy into your client's Base URL");
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>The Base URL a client should use: our port + the upstream's path
+    /// (the proxy mirrors the upstream path on its own port). Provider-agnostic.</summary>
+    internal static string ClientBaseUrl(Status.Info i)
+    {
+        var path = "";
+        if (i.Upstream is not null)
+        {
+            try { path = new Uri(i.Upstream).AbsolutePath.TrimEnd('/'); } catch { path = ""; }
+        }
+        return $"http://[IP_8]:{i.ProxyPort}{path}";
+    }
+}
+
+internal sealed class ProviderForm : Form
+{
+    public ProviderForm(int port)
+    {
+        Text = "ClaimCheck — provider setup";
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        StartPosition = FormStartPosition.CenterScreen;
+        ClientSize = new Size(720, 420);
+
+        var text = new TextBox
+        {
+            Multiline = true,
+            ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical,
+            Dock = DockStyle.Fill,
+            Font = new Font(FontFamily.GenericMonospace, 9.5f),
+            BackColor = Color.White,
+            Text = Render(port),
+        };
+        var buttons = new Panel { Dock = DockStyle.Bottom, Height = 40 };
+        var copy = new Button { Text = "Copy all", Left = 8, Top = 8, Width = 100 };
+        copy.Click += (_, _) => { try { Clipboard.SetText(text.Text); } catch { } };
+        buttons.Controls.Add(copy);
+        Controls.Add(text);
+        Controls.Add(buttons);
+    }
+
+    private static string ClientUrl(int port, string upstreamPath) =>
+        $"http://[IP_8]:{port}{upstreamPath.TrimEnd('/')}";
+
+    private static string Render(int port)
+    {
+        var lines = new List<string>
+        {
+            "Point your client's Base URL at the proxy - the proxy mirrors the upstream path on its own port.",
+            "",
+            "provider        installer -Upstream                          client Base URL",
+            "--------        ---------------------------                  ---------------",
+            $"z.ai            https://api.z.ai/api/coding/paas/v4/         {ClientUrl(port, "/api/coding/paas/v4")}",
+            $"OpenAI          https://api.openai.com/v1/                   {ClientUrl(port, "/v1")}",
+            $"Anthropic       https://api.anthropic.com/v1/                {ClientUrl(port, "/v1")}",
+            $"OpenRouter      https://openrouter.ai/api/v1/                {ClientUrl(port, "/api/v1")}",
+            $"Ollama (local)  http://[IP_8]:11434/                         {ClientUrl(port, "")}",
+            "",
+            "Install/update with a preset (PowerShell):",
+            "  install.ps1 -WithProxy -Provider zai|openai|anthropic|openrouter",
+            "  or pass your own:  install.ps1 -WithProxy -Upstream https://your-provider/v1/",
+            "",
+            "Keep your real API key in the client - auth passes through the proxy untouched.",
+            "The Status window shows the live computed URL for the currently running upstream.",
+        };
         return string.Join(Environment.NewLine, lines);
     }
 }
