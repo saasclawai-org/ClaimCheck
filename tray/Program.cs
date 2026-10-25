@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using ClaimCheck;
@@ -13,6 +14,7 @@ internal static class Program
     private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        TrayConfig.Load();
         Application.Run(new TrayApp(args));
     }
 }
@@ -26,6 +28,10 @@ internal sealed class TrayApp : ApplicationContext
     private StatusForm? _statusForm;
     private volatile bool _running;
     private int _port = 8766;
+    private readonly ToolStripMenuItem _updateItem;
+    private readonly ToolStripMenuItem _nerItem;
+    private System.Windows.Forms.Timer? _updateTimer;
+    private volatile bool _updateAvailable;
 
     public TrayApp(string[] args)
     {
@@ -33,10 +39,18 @@ internal sealed class TrayApp : ApplicationContext
         for (var i = 0; i < args.Length - 1; i++)
             if (args[i] == "--port" && int.TryParse(args[i + 1], out var p)) _port = p;
 
+        _updateItem = new ToolStripMenuItem("Check for updates now…", null, async (_, _) => await UpdateClicked());
+        _nerItem = new ToolStripMenuItem("NER scrubbing (proxy)", null, (_, _) => NerToggled())
+        { CheckOnClick = true, Checked = TrayConfig.NerEnabled };
+
         var menu = new ContextMenuStrip();
         menu.Items.Add("Status…", null, (_, _) => ShowStatus());
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Open vault folder", null, (_, _) => OpenVault());
+        menu.Items.Add(_nerItem);
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Restart proxy", null, (_, _) => _ = Restart());
+        menu.Items.Add(_updateItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => ExitTray());
 
@@ -53,6 +67,7 @@ internal sealed class TrayApp : ApplicationContext
         _timer.Tick += async (_, _) => await Poll();
         _timer.Start();
 
+        _ = WarmUpdateCheck();
         _ = Start();
     }
 
@@ -109,6 +124,7 @@ internal sealed class TrayApp : ApplicationContext
         {
             _icon.Text = $"ClaimCheck: proxy not answering on 127.0.0.1:{_port}";
         }
+        if (_updateAvailable) _icon.Text += " · update available";
         _statusForm?.RefreshStatus();
     }
 
@@ -124,6 +140,104 @@ internal sealed class TrayApp : ApplicationContext
             _statusForm.Activate();
         }
         _statusForm.RefreshStatus();
+    }
+
+    private async Task UpdateClicked()
+    {
+        if (UpdateChecker.Checking) return;
+        if (UpdateChecker.Latest is not null) { DoUpdate(); return; }
+        _updateItem.Text = "Checking for updates…";
+        await UpdateChecker.CheckAsync();
+        RefreshUpdateUi();
+    }
+
+    private void RefreshUpdateUi()
+    {
+        if (UpdateChecker.Latest is { } v)
+        {
+            _updateAvailable = true;
+            _updateItem.Text = $"Download and install v{v}…";
+        }
+        else
+        {
+            _updateAvailable = false;
+            _updateItem.Text = $"Up to date (v{Status.Version})" +
+                (UpdateChecker.LastCheck is { } t ? $" — checked {t:HH:mm}" : "");
+        }
+    }
+
+    private async Task WarmUpdateCheck()
+    {
+        await Task.Delay(20_000);
+        await UpdateChecker.CheckAsync();
+        RefreshUpdateUi();
+        _updateTimer = new System.Windows.Forms.Timer { Interval = 4 * 60 * 60 * 1000 };
+        _updateTimer.Tick += async (_, _) =>
+        {
+            await UpdateChecker.CheckAsync();
+            RefreshUpdateUi();
+        };
+        _updateTimer.Start();
+    }
+
+    private void DoUpdate()
+    {
+        var v = UpdateChecker.Latest!;
+        if (MessageBox.Show($"Update ClaimCheck to v{v}?\n\nThe tray and proxy will stop and restart on the new build.",
+                "ClaimCheck update", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
+            return;
+        try
+        {
+            var wrapper = UpdateChecker.StageUpdate();
+            Process.Start(new ProcessStartInfo("powershell.exe",
+                $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{wrapper}\"")
+            { UseShellExecute = true, CreateNoWindow = true });
+        }
+        catch (Exception e)
+        {
+            MessageBox.Show("Update failed to start: " + e.Message, "ClaimCheck update",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+        _icon.Text = "ClaimCheck: updating…";
+        Task.Delay(1500).ContinueWith(_ => ExitTray());
+    }
+
+    private void NerToggled()
+    {
+        var on = _nerItem.Checked;
+        if (on && !NerModelCached())
+        {
+            if (MessageBox.Show(
+                    "Enable NER scrubbing?\n\nFree-text person/org/location detection runs locally; the first use downloads a ~110 MB model (one time).\n\nNote: this governs the scrub PROXY only — the Cline MCP server has its own NER setting.",
+                    "ClaimCheck NER", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK)
+            {
+                _nerItem.Checked = false;
+                return;
+            }
+        }
+        TrayConfig.SetNer(on);
+    }
+
+    private static bool NerModelCached()
+    {
+        try
+        {
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".claimcheck", "models", string.Join('_', ClaimCheck.Ner.ModelRepo.Split('/')));
+            return Directory.Exists(dir) && Directory.EnumerateFiles(dir).Any();
+        }
+        catch { return false; }
+    }
+
+    private void OpenVault()
+    {
+        try
+        {
+            Directory.CreateDirectory(Sanitizer.VaultDir);
+            Process.Start(new ProcessStartInfo(Sanitizer.VaultDir) { UseShellExecute = true });
+        }
+        catch { /* best effort */ }
     }
 
     private async void ExitTray()

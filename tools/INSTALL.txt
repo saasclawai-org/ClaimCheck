@@ -1,4 +1,4 @@
-ClaimCheck v0.3.1 — local PII pseudonymization for Windows
+ClaimCheck v0.4.0 — local PII pseudonymization for Windows
 ===========================================================
 
 WHAT IT IS
@@ -24,6 +24,9 @@ THE SCRUB PROXY + TRAY (on-wire enforcement)
   install.ps1 -WithProxy
     Registers a logon task that runs ClaimCheckTray.exe: a small tray app
     hosting the proxy in-process. Green shield = running, red = not.
+    Tray menu: Status, Open vault folder, NER scrubbing (proxy) toggle,
+    Restart proxy, update check (auto every 4h + on-demand; one click
+    downloads and installs the new build), Exit.
     Double-click the shield (or right-click -> Status) for: port, upstream,
     requests proxied/scrubbed, vault, NER, fail-closed, MCP wiring.
     Then point your model provider Base URL at the proxy:
