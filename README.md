@@ -148,6 +148,11 @@ the model chose to read.
 ClaimCheck --proxy --upstream https://api.example-provider.com/v1 --port 8766
 ```
 
+On Windows, `install.ps1 -WithProxy` registers the proxy as a logon **tray app**
+(`ClaimCheckTray.exe` — a green/red shield in the system tray; double-click for live
+status). `ClaimCheck status` / `status --json` works on any OS: proxy state, request
+and scrub counters, NER mode, vault size, MCP wiring.
+
 Point your client's base URL at `http://127.0.0.1:8766/v1` and keep your real API key in the
 client — auth passes through untouched. Streaming (SSE) is supported, including placeholders
 split across chunk boundaries.

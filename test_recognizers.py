@@ -2,7 +2,6 @@
 """Recognizer coverage test: JWT, PEM private keys, connection-string passwords
 + regression on the original ten. Regex tier only (SANITIZE_NER not needed)."""
 import asyncio
-import datetime
 import json
 import re
 from pathlib import Path
@@ -51,7 +50,7 @@ TEXT = (
 async def main():
     params = StdioServerParameters(command="dotnet", args=[str(DLL)], cwd=str(HERE))
     async with stdio_client(params) as (r, w):
-        async with ClientSession(r, w, read_timeout_seconds=datetime.timedelta(seconds=300)) as s:
+        async with ClientSession(r, w, read_timeout_seconds=300) as s:
             await s.initialize()
             res = json.loads((await s.call_tool("sanitize_text", {"text": TEXT})).content[0].text)
             out = res["sanitized"]

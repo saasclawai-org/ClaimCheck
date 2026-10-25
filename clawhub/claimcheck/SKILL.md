@@ -1,7 +1,7 @@
 ---
 name: claimcheck
 description: Sanitize PII/secrets (FEIN, SSN, names, credentials) from text or files with the local ClaimCheck CLI before anything leaves the machine; reversible via the local vault.
-version: 1.0.1
+version: 1.0.2
 metadata:
   openclaw:
     emoji: "🛡️"
@@ -44,6 +44,7 @@ Repo: https://github.com/saasclawai-org/ClaimCheck
   ClaimCheck sanitize-file <path>       # file → summary only (no content)
   ClaimCheck sanitize-file <path> --content
   ClaimCheck restore <file|->           # placeholders → real values (local vault only)
+  ClaimCheck status                     # proxy running? NER? vault? MCP wiring (--json for machines)
 
 On Windows the binary is %USERPROFILE%\claimcheck\ClaimCheck.exe (or your custom
 InstallDir). Recognized: FEIN, SSN, email, phone, cards (Luhn), IBAN, AWS/GitHub/Slack

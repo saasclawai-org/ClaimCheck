@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace ClaimCheck;
@@ -27,11 +28,24 @@ public static class Proxy
     private static FileInfo _vaultFile = null!;
     private static HttpClient _http = null!;
     private static string _upstream = "";
+    private static long _totalRequests;
+    private static long _scrubbedRequests;
+    private static DateTime? _lastRequestUtc;
 
     // Upstream URL path prefix (e.g. "api/coding/paas/v4"); used to de-duplicate client paths
     // whose base URL already carries it (OpenClaw builds differ across versions).
     private static string? _upstreamPrefix;
     private static List<(string Type, Regex Rx, Func<string, bool>?)> _patterns = new();
+
+    // ---- live status snapshot (for the /status endpoint + ClaimCheckTray) ----
+
+    public static int Port { get; private set; }
+    public static DateTime StartedUtc { get; private set; }
+    public static string Upstream => _upstream;
+    public static string VaultPath => _vaultFile?.FullName ?? "";
+    public static long TotalRequests => Interlocked.Read(ref _totalRequests);
+    public static long ScrubbedRequests => Interlocked.Read(ref _scrubbedRequests);
+    public static string? LastRequestUtc => _lastRequestUtc?.ToString("yyyy-MM-dd HH:mm:ss 'UTC'");
 
     private static string? GetArg(string[] args, string name)
     {
@@ -67,10 +81,21 @@ public static class Proxy
 
     public static async Task<int> Run(string[] args)
     {
+        var app = await StartAsync(args);
+        await app.WaitForShutdownAsync();
+        return 0;
+    }
+
+    /// <summary>Builds and starts the proxy (Kestrel) without blocking. The Windows tray
+    /// app hosts it in-process; Proxy.Run wraps this for console use.</summary>
+    public static async Task<WebApplication> StartAsync(string[] args)
+    {
         _upstream = GetArg(args, "--upstream") ?? throw new ArgumentException("--upstream <base-url> required");
         if (!_upstream.EndsWith('/')) _upstream += '/';
         _upstreamPrefix = UpstreamPathPrefix(_upstream);
         var port = int.TryParse(GetArg(args, "--port"), out var p) ? p : 8766;
+        Port = port;
+        StartedUtc = DateTime.UtcNow;
 
         Directory.CreateDirectory(Sanitizer.VaultDir);
         var vaultOverride = GetArg(args, "--vault");
@@ -100,6 +125,21 @@ public static class Proxy
         var app = builder.Build();
 
         app.Map("/health", () => Results.Text("ok"));
+        app.Map("/status", () => Results.Json(new
+        {
+            ok = true,
+            version = Status.Version,
+            port,
+            upstream = _upstream,
+            vault = _vaultFile.FullName,
+            vaultEntries = _vault.Map.Count,
+            totalRequests = TotalRequests,
+            scrubbedRequests = ScrubbedRequests,
+            lastRequestUtc = LastRequestUtc,
+            ner = Ner.Enabled,
+            failClosed = FailClosed,
+            startedUtc = StartedUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'"),
+        }));
         app.Map("/{**path}", async (HttpContext ctx, string? path) =>
         {
             path ??= "";
@@ -110,12 +150,14 @@ public static class Proxy
         });
 
         Console.Error.WriteLine($"sanitize proxy: http://127.0.0.1:{port} -> {_upstream} (scrub outbound, restore inbound; vault: {_vaultFile.FullName})");
-        await app.RunAsync();
-        return 0;
+        await app.StartAsync();
+        return app;
     }
 
     private static async Task HandleChat(HttpContext ctx, string path)
     {
+        Interlocked.Increment(ref _totalRequests);
+        _lastRequestUtc = DateTime.UtcNow;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         using var reader = new StreamReader(ctx.Request.Body);
         var body = await reader.ReadToEndAsync();
@@ -135,6 +177,7 @@ public static class Proxy
             if (root is not null)
             {
                 ScrubMessages(root, _vault);
+                Interlocked.Increment(ref _scrubbedRequests);
                 Sanitizer.SaveVault(_vaultFile, _vault);
             }
         }

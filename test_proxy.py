@@ -3,6 +3,7 @@
 Asserts: (1) upstream NEVER sees raw PII, (2) client ALWAYS sees restored values,
 (3) SSE placeholders split across chunks are restored cleanly, (4) vault persistence."""
 import json
+import socket
 import subprocess
 import time
 import urllib.request
@@ -12,8 +13,17 @@ HERE = Path(__file__).parent
 DLL = HERE / "bin" / "Release" / "net9.0" / "ClaimCheck.dll"
 FEIN = "27-9415062"
 
+def free_port() -> int:
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    p = s.getsockname()[1]
+    s.close()
+    return p
+
+PORT = free_port()  # never hardcode 8766 — the production proxy service owns it
+
 def post_raw(body: dict) -> str:
-    req = urllib.request.Request("http://127.0.0.1:8766/v1/chat/completions",
+    req = urllib.request.Request(f"http://127.0.0.1:{PORT}/v1/chat/completions",
                                  data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
     return urllib.request.urlopen(req, timeout=15).read().decode()
@@ -24,12 +34,12 @@ def main() -> None:
         pv.unlink()  # deterministic numbering
 
     mock = subprocess.Popen(["python3", str(HERE / "mock_upstream.py")])
-    proxy = subprocess.Popen(["dotnet", str(DLL), "--proxy", "--upstream", "http://127.0.0.1:9988", "--port", "8766"],
+    proxy = subprocess.Popen(["dotnet", str(DLL), "--proxy", "--upstream", "http://127.0.0.1:9988", "--port", str(PORT)],
                              stderr=subprocess.DEVNULL)
     try:
         for _ in range(60):
             try:
-                urllib.request.urlopen("http://127.0.0.1:8766/health", timeout=1).read()
+                urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=1).read()
                 break
             except Exception:
                 time.sleep(0.2)

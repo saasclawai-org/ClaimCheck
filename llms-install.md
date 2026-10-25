@@ -80,6 +80,11 @@ CLI: `ClaimCheck restore <file|->` maps placeholders back to real values.
 The vault lives under the user profile directory (`.claimcheck`) and never
 leaves the machine.
 
+Status: `ClaimCheck status` (human-readable) or `ClaimCheck status --json`
+(machines; exit code 3 = proxy not detected). Reports whether the scrub proxy
+is running (port, upstream, request/scrubbed counters on 0.3.0+), NER mode,
+vault size, and which MCP hosts have ClaimCheck wired.
+
 ## Recognized by default
 
 FEIN, SSN, email, phone, credit cards (Luhn-checked), IBAN, AWS access/secret

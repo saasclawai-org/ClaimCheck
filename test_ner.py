@@ -3,7 +3,6 @@
 [PERSON_]/[ORG_]/[LOC_] tickets; original text never reaches the model response.
 First run downloads the ONNX model (~109 MB) from HuggingFace."""
 import asyncio
-import datetime
 import json
 import os
 import re
@@ -19,7 +18,7 @@ async def main() -> None:
     env = dict(os.environ, SANITIZE_NER="1")
     params = StdioServerParameters(command="dotnet", args=[str(DLL)], cwd=str(HERE), env=env)
     async with stdio_client(params) as (r, w):
-        async with ClientSession(r, w, read_timeout_seconds=datetime.timedelta(seconds=600)) as s:
+        async with ClientSession(r, w, read_timeout_seconds=600) as s:
             await s.initialize()
 
             text = ("Jane Doe from Microsoft visited Seattle to meet Satya Nadella "

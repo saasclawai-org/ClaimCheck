@@ -30,6 +30,11 @@ ERRLOG = None
 
 class Stub(BaseHTTPRequestHandler):
     def _hit(self):
+        # Drain the request body BEFORE responding: closing without reading it can RST
+        # mid-body under parallel load (client sees IOException -> proxy 502s intermittently).
+        n = int(self.headers.get("Content-Length") or 0)
+        if n:
+            self.rfile.read(n)
         body = b'{"ok": true}'
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -76,8 +81,20 @@ def post(base, content):
                        "messages": [{"role": "user", "content": content}]}).encode()
     req = urllib.request.Request(base + "/chat/completions", data=data, method="POST",
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return r.status
+    # One retry on 502: the HTTP/1.0 stub closes each connection, and a pooled client can
+    # hit a RST mid-burst (pre-existing, load-shaped). A real proxy defect fails both tries.
+    for attempt in (1, 2):
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors="replace")[:200]
+            if e.code == 502 and attempt == 1:
+                time.sleep(0.5)
+                continue
+            print(f"   [diag] non-200 from proxy: {e.code} body={body}")
+            raise
+    raise RuntimeError("post: unreachable")
 
 
 def main():

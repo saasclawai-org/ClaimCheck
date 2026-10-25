@@ -1,0 +1,56 @@
+ClaimCheck v0.3.0 — local PII pseudonymization for Windows
+===========================================================
+
+WHAT IT IS
+  Replaces sensitive values (FEIN, SSN, names, credentials, keys...) with
+  stable, reversible placeholders ([FEIN_1], [SSN_2], [PERSON_1]...) and
+  keeps the mapping in a local vault. Nothing leaves the machine — no
+  account, no API key, no network calls.
+
+FILES IN THIS PACKAGE
+  ClaimCheck.exe      CLI + MCP server + scrub proxy (console tool)
+  ClaimCheckTray.exe  Windows tray host for the scrub proxy (green/red shield)
+  INSTALL.txt         this file
+
+INSTALL / UPDATE (one shot, PowerShell)
+  irm https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.ps1 | iex
+
+  - Installs to %USERPROFILE%\claimcheck (adds it to your user PATH)
+  - Re-running the same command UPDATES: stops the logon proxy task if it
+    holds the exe, backs up the old exe to ClaimCheck.exe.bak, re-wires the
+    Cline MCP config automatically (VS Code must be closed)
+
+THE SCRUB PROXY + TRAY (on-wire enforcement)
+  install.ps1 -WithProxy
+    Registers a logon task that runs ClaimCheckTray.exe: a small tray app
+    hosting the proxy in-process. Green shield = running, red = not.
+    Double-click the shield (or right-click -> Status) for: port, upstream,
+    requests proxied/scrubbed, vault, NER, fail-closed, MCP wiring.
+    Then point your model provider Base URL at the proxy:
+      http://127.0.0.1:8766/api/coding/paas/v4
+    (keep your real API key in the client - auth passes through untouched)
+
+STATUS FROM THE CLI (any OS)
+  ClaimCheck status            human-readable: proxy state, NER, vault, wiring
+  ClaimCheck status --json     machine-readable (exit 3 = proxy not detected)
+
+CLI VERBS
+  ClaimCheck sanitize-text "text"   scrub text from argv or stdin -> JSON
+  ClaimCheck sanitize-file <path>   scan a file (add --content for sanitized copy)
+  ClaimCheck restore <file|->       restore placeholders -> original values
+  ClaimCheck --proxy --upstream <url> [--port 8766]   run the scrub proxy
+
+MCP (Cline / OpenClaw)
+  Point the MCP server command at ClaimCheck.exe; tools: sanitize_text,
+  scan_file, read_sanitized. install.ps1 wires Cline automatically.
+
+VAULT
+  ~/.sanitize-mcp/vaults/  (per-project + proxy vaults, plain JSON)
+
+UNINSTALL
+  Delete %USERPROFILE%\claimcheck, remove the ClaimCheckProxy scheduled
+  task, and remove the claimcheck block from your MCP config. Vault stays.
+
+DISCLAIMER
+  Regex + local NER catch common PII/secret shapes. No sanitizer is perfect:
+  review sanitized output before it leaves your machine. MIT-0 license.

@@ -18,6 +18,8 @@ ClaimCheck install/update script (Windows)
 
 - Downloads the latest GitHub release (win-x64 zip)
 - Backs up any existing ClaimCheck.exe to ClaimCheck.exe.bak
+- Update = re-run this same script (stops the logon proxy task first, then backs up)
+- -WithProxy now runs the proxy as a system-tray app (green/red shield icon, live status)
 - Auto-wires the Cline MCP config (VS Code stable + Insiders) if present,
   preserving your other MCP servers. If VS Code is running, it skips the
   config write (Cline rewrites that file from memory) and prints the block.
@@ -59,6 +61,14 @@ try {
         Write-Host "Backed up previous exe -> ClaimCheck.exe.bak"
     }
 
+    # Release the exe lock held by the logon proxy task (if any) before copying.
+    $proxyTask = Get-ScheduledTask -TaskName "ClaimCheckProxy" -ErrorAction SilentlyContinue
+    if ($proxyTask -and $proxyTask.State -ne "Disabled") {
+        Stop-ScheduledTask -TaskName "ClaimCheckProxy" -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 1
+        Write-Host "Stopped ClaimCheckProxy task (was holding the previous exe)."
+    }
+
     try {
         Copy-Item (Join-Path $tmp "ClaimCheck.exe") $target -Force
     } catch {
@@ -84,15 +94,23 @@ if ($userPath -notlike "*$InstallDir*") {
 
 # Optional: on-wire enforcement — run the scrub proxy at logon
 if ($WithProxy) {
+    $trayExe = Join-Path $InstallDir "ClaimCheckTray.exe"
+    $useTray = Test-Path $trayExe
+    $proxyExe = if ($useTray) { $trayExe } else { $target }
     $proxyArgs = "--proxy --upstream `"$ProxyUpstream`" --port $ProxyPort"
     try {
-        $action   = New-ScheduledTaskAction -Execute $target -Argument $proxyArgs
+        $action   = New-ScheduledTaskAction -Execute $proxyExe -Argument $proxyArgs
         $trigger  = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
         $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable
         Register-ScheduledTask -TaskName "ClaimCheckProxy" -Action $action -Trigger $trigger -Settings $settings -Description "ClaimCheck on-wire PII scrub proxy" -Force | Out-Null
         Start-ScheduledTask -TaskName "ClaimCheckProxy"
         Write-Host ""
-        Write-Host "Proxy registered + started (listens on 127.0.0.1:$ProxyPort, restarts at every logon)." -ForegroundColor Green
+        Write-Host ""
+        if ($useTray) {
+            Write-Host "Proxy registered + started as a TRAY APP (green/red shield in the system tray; double-click = status)." -ForegroundColor Green
+        } else {
+            Write-Host "Proxy registered + started (listens on 127.0.0.1:$ProxyPort, restarts at every logon)." -ForegroundColor Green
+        }
         Write-Host "Point your Cline model provider Base URL at: http://127.0.0.1:$ProxyPort/api/coding/paas/v4"
         Write-Host "(keep your real API key in Cline - auth passes through the proxy untouched)"
     } catch {

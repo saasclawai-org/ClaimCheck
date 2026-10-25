@@ -24,6 +24,11 @@ if (args.Length > 0 && args[0] == "sanitize-file")
     return 0;
 }
 
+if (args.Length > 0 && args[0] is "status" or "--status")
+{
+    return Status.Run(args);
+}
+
 if (args.Length > 0 && args[0] == "--proxy")
 {
     return await Proxy.Run(args);

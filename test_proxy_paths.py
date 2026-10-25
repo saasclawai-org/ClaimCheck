@@ -32,6 +32,10 @@ HITS = []  # every path the stub upstream receives, in order
 class Stub(BaseHTTPRequestHandler):
     def _hit(self):
         HITS.append(self.path)
+        # Drain request body before responding (unread body + close can RST mid-flight).
+        n = int(self.headers.get("Content-Length") or 0)
+        if n:
+            self.rfile.read(n)
         body = json.dumps({"ok": True, "path": self.path}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

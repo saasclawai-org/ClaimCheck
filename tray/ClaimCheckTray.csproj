@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Cross-build from Linux for the win-x64 release zip -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>ClaimCheckTray</AssemblyName>
+    <Version>0.3.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../ClaimCheck.csproj" />
+    <!-- FrameworkReference doesn't flow transitively to WinExe projects -> declare it -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>
