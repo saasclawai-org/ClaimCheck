@@ -81,6 +81,63 @@
       <li><strong>Work.</strong> The model reasons over placeholders. Same value, same placeholder, every time — references and context stay consistent across the whole session.</li>
       <li><strong>Restore.</strong> The response crosses back through the vault and placeholders become real values again. Locally.</li>
     </ol>
+
+<figure style="margin:22px 0;">
+<svg viewBox="0 0 880 340" width="100%" role="img" aria-label="ClaimCheck architecture: requests are scrubbed locally before reaching the model provider, responses are restored after; the vault never crosses the trust boundary.">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
+    </marker>
+    <marker id="arrT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2dd4bf"/>
+    </marker>
+  </defs>
+  <!-- zones -->
+  <rect x="16" y="16" width="544" height="308" rx="12" fill="#10151c" stroke="#30363d"/>
+  <rect x="596" y="16" width="268" height="308" rx="12" fill="#151417" stroke="#3d2b2e"/>
+  <text x="36" y="44" fill="#8b949e" font-size="12" letter-spacing="2">YOUR MACHINE</text>
+  <text x="616" y="44" fill="#8b949e" font-size="12" letter-spacing="2">INTERNET</text>
+  <!-- trust boundary -->
+  <line x1="576" y1="30" x2="576" y2="310" stroke="#2dd4bf" stroke-dasharray="5 6" opacity="0.55"/>
+  <text x="576" y="330" text-anchor="middle" fill="#2dd4bf" font-size="11.5">only placeholders cross</text>
+  <!-- connectors (drawn before nodes) -->
+  <path d="M200 88 H252" stroke="#8b949e" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+  <path d="M200 166 H252" stroke="#8b949e" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+  <path d="M200 252 H252" stroke="#8b949e" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+  <path d="M534 120 H648" stroke="#2dd4bf" stroke-width="1.8" fill="none" marker-end="url(#arrT)"/>
+  <path d="M648 180 H534" stroke="#8b949e" stroke-width="1.5" fill="none" stroke-dasharray="4 4" marker-end="url(#arr)"/>
+  <!-- clients -->
+  <g font-size="13.5" fill="#c9d1d9">
+    <rect x="40" y="62" width="160" height="52" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="52" y="84">Cline / VS Code</text>
+    <text x="52" y="102" fill="#8b949e" font-size="11.5">MCP tools</text>
+    <rect x="40" y="140" width="160" height="52" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="52" y="162">CLI / scripts</text>
+    <text x="52" y="180" fill="#8b949e" font-size="11.5">stdin &#183; files &#183; pipes</text>
+    <rect x="40" y="228" width="160" height="52" rx="8" fill="#161b22" stroke="#2dd4bf"/>
+    <text x="52" y="250">Tray / systemd</text>
+    <text x="52" y="268" fill="#8b949e" font-size="11.5">on-wire proxy, always on</text>
+  </g>
+  <!-- engine -->
+  <rect x="252" y="52" width="282" height="248" rx="10" fill="#122b27" stroke="#2dd4bf"/>
+  <text x="272" y="86" fill="#e6edf3" font-size="15" font-weight="700">ClaimCheck</text>
+  <text x="272" y="108" fill="#8b949e" font-size="12">26 recognizers &#183; local NER &#183; fail-closed</text>
+  <rect x="272" y="126" width="242" height="44" rx="8" fill="#161b22" stroke="#d29922"/>
+  <text x="286" y="146" fill="#c9d1d9" font-size="12.5">&#128274; Vault &#8212; placeholder &#8594; value map</text>
+  <text x="286" y="162" fill="#8b949e" font-size="11">never leaves the machine</text>
+  <text x="272" y="200" fill="#8b949e" font-size="12">scrubs every request body</text>
+  <text x="272" y="220" fill="#8b949e" font-size="12">restores every response (incl. SSE)</text>
+  <!-- provider -->
+  <rect x="648" y="108" width="196" height="72" rx="10" fill="#161b22" stroke="#f85149" opacity="0.9"/>
+  <text x="664" y="138" fill="#c9d1d9" font-size="13.5">Model provider</text>
+  <text x="664" y="158" fill="#8b949e" font-size="11.5">z.ai &#183; [ORG_39] &#183; Anthropic &#183; &#8230;</text>
+  <!-- crossing labels -->
+  <text x="590" y="112" text-anchor="end" fill="#2dd4bf" font-size="11.5">scrubbed request</text>
+  <text x="590" y="196" text-anchor="end" fill="#8b949e" font-size="11.5">restored answer</text>
+</svg>
+<figcaption style="color:#6e7681;font-size:13px;margin-top:8px;">Scrub before the model, restore after. The vault never crosses the boundary.</figcaption>
+</figure>
+
     <p>Three ways to run it: <strong>MCP tools</strong> your agent calls directly (Cline, Claude Code, OpenClaw), a <strong>CLI</strong> for files and pipes, or a <strong>scrubbing proxy</strong> that sits between any OpenAI-compatible client and its provider and sanitizes everything on the wire — with a fail-closed posture: if scrubbing fails, the request is held, not forwarded.</p>
   </section>
 
