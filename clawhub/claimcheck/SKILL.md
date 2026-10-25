@@ -24,9 +24,12 @@ Windows PowerShell (installs to %USERPROFILE%\claimcheck\ClaimCheck.exe):
 
     irm https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.ps1 | iex
 
-macOS/Linux: build from source —
+Linux (per-user, no sudo; x64 + arm64 prebuilt):
 
-    dotnet publish -c Release -r <rid> --self-contained true -p:PublishSingleFile=true
+    curl -fsSL https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.sh | bash
+
+Proxy as a systemd --user service: download the script and run
+`./install.sh --proxy --upstream <base-url> [--port 8766]`.
 
 Repo: https://github.com/saasclawai-org/ClaimCheck
 

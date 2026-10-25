@@ -11,6 +11,14 @@ auto-wires the Cline MCP config (VS Code must be closed while it runs):
 
     irm https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.ps1 | iex
 
+Linux — one command (per-user, no sudo; prebuilt x64 + arm64):
+
+    curl -fsSL https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.sh | bash
+
+Installs to `~/.local/bin` (add it to PATH if prompted). Optional proxy service:
+`./install.sh --proxy --upstream <base-url> [--port 8766]` registers a systemd --user
+unit. Update = re-run the same command. Check health: `ClaimCheck status`.
+
 Manual install:
 
 1. Download the latest release asset from
