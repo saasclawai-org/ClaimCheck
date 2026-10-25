@@ -83,7 +83,8 @@ public static class Sanitizer
         ("IP",             new Regex(@"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b"), null),
         ("MEDICAL_LICENSE",new Regex(@"(?i)\b(?:medical\s+lic(?:ense)?|lic(?:ense)?)\s*(?:no\.?|number|#)?\s*[:=]?\s*[A-Z]{2}-[A-Z]{2}-\d{4,8}\b"), null),
         ("INSURANCE_ID",   new Regex(@"(?i)\b(?:member|policy|insurance)\s*(?:id|#|number)?\s*[:=]?\s*[A-Z]{2,5}[- ]\d{4,12}\b"), null),
-        ("ACCOUNT",        new Regex(@"(?i)\b(?:bank\s+)?(?:acct|account)\s*(?:no\.?|number|#)?\s*[:=]?\s*\d{6,17}\b"), null),
+        ("ACCOUNT",        new Regex(@"(?i)\b(?:bank\s+)?(?:acct|account)\s*(?:no\.?|number|#)?\s*[:=]?\s*\d{4,17}\b"), null),
+        ("ID_LABEL",       new Regex(@"(?i)\b(?:customer|client|invoice|policy|case|member|patient|claim|order|ticket|file|ref(?:erence)?|project|contract|vendor|supplier|emp(?:loyee)?)\s*(?:no\.?|number|#|id)?\s*[:=]?\s*\d{4,17}\b"), null),
         ("ADDRESS",        new Regex(@"(?i)\b\d{1,5}\s+(?:[A-Z][a-z]+\s){1,4}(?:street|st|avenue|ave|blvd|boulevard|road|rd|drive|dr|lane|ln|court|ct|way|terrace|ter|place|pl|circle|cir)\.?,?\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*,?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?\b"), null),
     };
 

@@ -45,6 +45,7 @@ TEXT = (
     "member id: BCB-2847193\n"
     "api key: sk-live-a1b2c3d4e5f6g7h8i9\n"
     "bank acct no: 12345678\n"
+    "account #12344\ncustomer #98765\n"
 )
 
 async def main():
@@ -59,7 +60,7 @@ async def main():
             expect = {"JWT", "PASSWORD", "API_KEY", "FEIN", "SSN",
                       "EMAIL", "CARD", "IBAN", "AWS_KEY", "GH_TOKEN", "SLACK_TOKEN",
                       "CVV", "EXPIRY", "DOB", "PASSPORT", "DL", "ROUTING", "IP",
-                      "ADDRESS", "MEDICAL_LICENSE", "INSURANCE_ID", "ACCOUNT"}
+                      "ADDRESS", "MEDICAL_LICENSE", "INSURANCE_ID", "ACCOUNT", "ID_LABEL"}
             missing = expect - types
             assert not missing, f"missing recognizers: {missing} (got {sorted(types)})"
             # PEM blocks report via summary count (like encoded blobs), not findings
@@ -75,6 +76,8 @@ async def main():
                         "BCB-2847193", "Evergreen Terrace", "sk-live-a1b2",
                         "12345678"):
                 assert raw not in out, f"regression leak: {raw}"
+            for raw in ("account #12344", "customer #98765"):
+                assert raw not in out, f"labeled-id leak: {raw}"
 
             # word-boundary invariant: no placeholder against a leftover letter/digit
             assert not re.search(r"\[[A-Z_]+_\d+\][A-Za-z0-9]", out), f"partial-word leak: {out!r}"

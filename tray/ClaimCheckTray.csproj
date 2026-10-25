@@ -9,7 +9,7 @@
     <!-- Cross-build from Linux for the win-x64 release zip -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>ClaimCheckTray</AssemblyName>
-    <Version>0.4.2</Version>
+    <Version>0.4.3</Version>
     <ApplicationIcon>../ClaimCheck.ico</ApplicationIcon>
   </PropertyGroup>
 
