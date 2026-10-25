@@ -202,9 +202,13 @@ public static class Sanitizer
         VaultData v = new();
         if (file.Exists)
         {
+            // v0.6.0: an encrypted vault that cannot be decrypted THROWS rather than
+            // silently returning an empty vault (which would overwrite the real mapping
+            // on the next save). Plain-text JSON-corruption keeps the legacy fallback.
+            string json = VaultCrypto.ReadJson(file.FullName);
             try
             {
-                v = JsonSerializer.Deserialize<VaultData>(File.ReadAllText(file.FullName)) ?? new VaultData();
+                v = JsonSerializer.Deserialize<VaultData>(json) ?? new VaultData();
                 // self-heal: reverse is fully derivable from the map with typed keys,
                 // which also migrates legacy files that keyed reverse on the bare value
                 v.Reverse.Clear();
@@ -224,7 +228,7 @@ public static class Sanitizer
         lock (VaultLock)
         {
             var tmp = file.FullName + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(v, new JsonSerializerOptions { WriteIndented = true }));
+            VaultCrypto.WriteJson(tmp, JsonSerializer.Serialize(v, new JsonSerializerOptions { WriteIndented = true }));
             if (!OperatingSystem.IsWindows())
             {
                 try { File.SetUnixFileMode(tmp, UnixFileMode.UserRead | UnixFileMode.UserWrite); } catch { }
@@ -232,7 +236,8 @@ public static class Sanitizer
             // Atomic publish: readers see the old file or the new one, never a torn write.
             File.Move(tmp, file.FullName, overwrite: true);
         }
-        // Windows: %USERPROFILE% ACLs already restrict to the user; DPAPI encryption is a future tier.
+        // At-rest protection: Windows = DPAPI (CurrentUser) by default, or AES-GCM with
+        // SANITIZE_VAULT_PASSWORD; Linux = plaintext + 0600 unless SANITIZE_VAULT_PASSWORD is set.
     }
 
     public static string Placeholder(VaultData v, string type, string val)

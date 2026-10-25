@@ -48,7 +48,8 @@ MCP (Cline / OpenClaw)
   scan_file, read_sanitized. install.ps1 wires Cline automatically.
 
 VAULT
-  ~/.sanitize-mcp/vaults/  (per-project + proxy vaults, plain JSON)
+  ~/.sanitize-mcp/vaults/  (per-project + proxy vaults)
+  Windows: DPAPI-encrypted at rest. Password mode everywhere: SANITIZE_VAULT_PASSWORD env (AES-GCM).
 
 UNINSTALL
   Delete %USERPROFILE%\claimcheck, remove the ClaimCheckProxy scheduled

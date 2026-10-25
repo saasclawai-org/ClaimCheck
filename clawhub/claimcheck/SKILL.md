@@ -10,6 +10,9 @@ metadata:
       - name: SANITIZE_NER
         required: false
         description: On by default. Set to 0 to disable the NER tier (free-text names/orgs/locations; ~109MB model cached on first use).
+      - name: SANITIZE_VAULT_PASSWORD
+        required: false
+        description: Set to a password to encrypt vault files at rest (AES-GCM). On Windows, vaults are DPAPI-encrypted by default without it.
 ---
 
 # ClaimCheck — local PII pseudonymization

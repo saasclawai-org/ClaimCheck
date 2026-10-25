@@ -88,6 +88,10 @@ CLI: `ClaimCheck restore <file|->` maps placeholders back to real values.
 The vault lives under the user profile directory (`.claimcheck`) and never
 leaves the machine.
 
+Vault encryption (v0.6.0+): on Windows, vault files are DPAPI-encrypted at rest by default.
+Set `SANITIZE_VAULT_PASSWORD` for portable AES-GCM password mode (forgotten password =
+mappings unrecoverable). Linux defaults to plaintext with 0600 perms.
+
 Status: `ClaimCheck status` (human-readable) or `ClaimCheck status --json`
 (machines; exit code 3 = proxy not detected). Reports whether the scrub proxy
 is running (port, upstream, request/scrubbed counters on 0.3.0+), NER mode,

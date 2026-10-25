@@ -72,7 +72,9 @@ internal static class Restore
         foreach (var f in vaultFiles)
         {
             VaultData v;
-            try { v = JsonSerializer.Deserialize<VaultData>(File.ReadAllText(f.FullName)) ?? new VaultData(); }
+            if (!VaultCrypto.TryReadJson(f.FullName, out var vjson, out var verr))
+            { Console.Error.WriteLine($"claimcheck: skipping vault {f.Name} ({verr})"); continue; }
+            try { v = JsonSerializer.Deserialize<VaultData>(vjson) ?? new VaultData(); }
             catch { continue; }
             foreach (var (ph, val) in v.Map)
                 text = text.Replace("[" + ph + "]", val);

@@ -112,18 +112,22 @@ public static class Status
     {
         var dir = Sanitizer.VaultDir;
         if (!Directory.Exists(dir)) return $"{dir} — empty";
-        long files = 0, entries = 0;
+        long files = 0, entries = 0, encrypted = 0, plain = 0, locked = 0;
         foreach (var f in Directory.EnumerateFiles(dir, "*.json"))
         {
             files++;
-            try
-            {
-                var v = JsonSerializer.Deserialize<VaultData>(File.ReadAllText(f));
-                entries += v?.Map.Count ?? 0;
-            }
-            catch { /* skip unreadable vault */ }
+            var d = VaultCrypto.Describe(f);
+            entries += d.Entries ?? 0;
+            if (d.Error is not null) locked++;
+            else if (d.Protection == "plaintext") plain++;
+            else encrypted++;
         }
-        return $"{dir} — {files} vault{(files == 1 ? "" : "s")}, {entries} entr{(entries == 1 ? "y" : "ies")}";
+        var parts = new List<string>();
+        if (encrypted > 0) parts.Add($"{encrypted} encrypted");
+        if (plain > 0) parts.Add($"{plain} plaintext");
+        if (locked > 0) parts.Add($"{locked} locked");
+        var prot = parts.Count > 0 ? " (" + string.Join(", ", parts) + ")" : "";
+        return $"{dir} — {files} vault{(files == 1 ? "" : "s")}{prot}, {entries} entr{(entries == 1 ? "y" : "ies")}";
     }
 
     private static string[] McpWiring()

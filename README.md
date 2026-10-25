@@ -153,6 +153,8 @@ On Windows, `install.ps1 -WithProxy` registers the proxy as a logon **tray app**
 status). `ClaimCheck status` / `status --json` works on any OS: proxy state, request
 and scrub counters, NER mode, vault size, MCP wiring.
 
+The mapping vault lives on your machine and is **encrypted at rest** on Windows (DPAPI; optional
+AES-GCM password mode everywhere via `SANITIZE_VAULT_PASSWORD`).
 Point your client's base URL at `http://127.0.0.1:8766/v1` and keep your real API key in the
 client — auth passes through untouched. Streaming (SSE) is supported, including placeholders
 split across chunk boundaries.
