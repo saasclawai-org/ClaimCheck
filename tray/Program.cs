@@ -147,35 +147,23 @@ internal sealed class TrayApp : ApplicationContext
 
 internal static class Icons
 {
-    public static readonly Icon Ok = Make(Colors: false);
-    public static readonly Icon Off = Make(Colors: true);
+    public static readonly Icon Ok = Load("claimcheck-ok.ico");
+    public static readonly Icon Off = Load("claimcheck-off.ico");
 
-    private static Icon Make(bool Colors)
+    private static Icon Load(string name)
     {
-        using var bmp = new Bitmap(32, 32);
-        using (var g = Graphics.FromImage(bmp))
+        try
         {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            using var shield = new SolidBrush(Colors ? Color.Firebrick : Color.MediumSeaGreen);
-            Point[] shape =
-            {
-                new(16, 2), new(28, 7), new(28, 15),
-                new(26, 22), new(16, 30), new(6, 22), new(4, 15), new(4, 7),
-            };
-            g.FillPolygon(shield, shape);
-            using var pen = new Pen(Color.White, 3) { StartCap = LineCap.Round, EndCap = LineCap.Round };
-            if (Colors) // off: red X
-            {
-                g.DrawLine(pen, 11, 11, 21, 21);
-                g.DrawLine(pen, 21, 11, 11, 21);
-            }
-            else // running: check
-            {
-                g.DrawLine(pen, 10, 16, 14, 21);
-                g.DrawLine(pen, 14, 21, 22, 10);
-            }
+            var asm = typeof(Icons).Assembly;
+            var res = asm.GetManifestResourceNames()
+                .First(r => r.EndsWith(name, StringComparison.OrdinalIgnoreCase));
+            using var s = asm.GetManifestResourceStream(res);
+            return new Icon(s);
         }
-        return Icon.FromHandle(bmp.GetHicon());
+        catch
+        {
+            return SystemIcons.Shield; // fallback if embedded resources are missing
+        }
     }
 }
 

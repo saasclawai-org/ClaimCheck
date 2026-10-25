@@ -9,13 +9,19 @@
     <!-- Cross-build from Linux for the win-x64 release zip -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>ClaimCheckTray</AssemblyName>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
+    <ApplicationIcon>../ClaimCheck.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../ClaimCheck.csproj" />
     <!-- FrameworkReference doesn't flow transitively to WinExe projects -> declare it -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="../icons/claimcheck-ok.ico" Link="icons/claimcheck-ok.ico" />
+    <EmbeddedResource Include="../icons/claimcheck-off.ico" Link="icons/claimcheck-off.ico" />
   </ItemGroup>
 
 </Project>
