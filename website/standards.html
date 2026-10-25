@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClaimCheck — Standards &amp; compliance alignment</title>
+<meta name="description" content="How ClaimCheck maps to HIPAA Safe Harbor identifiers, NIST SP 800-122 and SP 800-188, ISO/IEC 20889 pseudonymization, GDPR Art. 4(5)/32, PCI-DSS, IRS Pub 1075 and GLBA — with honest limits.">
+<link rel="canonical" href="https://claimcheck.saasclaw.ai/standards.html">
+<meta property="og:title" content="ClaimCheck — Standards &amp; compliance alignment">
+<meta property="og:description" content="Recognizer-by-recognizer mapping to HIPAA Safe Harbor, NIST 800-122/800-188, ISO/IEC 20889, GDPR pseudonymization, PCI-DSS, IRS Pub 1075 and GLBA.">
+<meta property="og:url" content="https://claimcheck.saasclaw.ai/standards.html">
+<meta property="og:type" content="website">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0d1117; color: #c9d1d9; font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+  a { color: #2dd4bf; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1px 6px; font-size: .9em; }
+  header { border-bottom: 1px solid #21262d; padding: 14px 0; }
+  header .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .brand { font-weight: 700; color: #e6edf3; font-size: 17px; }
+  nav a { margin-left: 18px; color: #8b949e; font-size: 14px; }
+  nav a:hover { color: #2dd4bf; }
+  h1 { color: #e6edf3; font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 40px 0 16px; }
+  .sub { font-size: 18px; color: #8b949e; margin: 0 0 12px; }
+  section { padding: 30px 0; border-top: 1px solid #21262d; }
+  h2 { color: #e6edf3; font-size: 22px; margin: 0 0 12px; }
+  h3 { color: #e6edf3; font-size: 17px; margin: 20px 0 8px; }
+  p { margin: 0 0 14px; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #21262d; vertical-align: top; }
+  th { color: #8b949e; font-weight: 600; }
+  .y { color: #3fb950; font-weight: 600; }
+  .p { color: #d29922; font-weight: 600; }
+  .n { color: #8b949e; }
+  .note { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 14.5px; }
+  footer { border-top: 1px solid #21262d; padding: 26px 0 40px; color: #6e7681; font-size: 13.5px; }
+  footer p { margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand">🛡️ ClaimCheck</div>
+    <nav>
+      <a href="/">Home</a>
+      <a href="#hipaa">HIPAA 18</a>
+      <a href="#nist">NIST</a>
+      <a href="#sector">By sector</a>
+      <a href="#limits">Honest limits</a>
+      <a href="https://github.com/saasclawai-org/ClaimCheck">GitHub</a>
+    </nav>
+  </div>
+</header>
+<main class="wrap">
+  <h1>Standards &amp; compliance alignment</h1>
+  <p class="sub">What ClaimCheck does, described in the terms existing standards already use — and an honest list of what it does not do.</p>
+
+  <section id="technique">
+    <h2>The technique, in standards terms</h2>
+    <p>ClaimCheck performs <strong>pseudonymization</strong>: direct identifiers are replaced with stable, reversible placeholders (<code>[FEIN_1]</code>, <code>[SSN_2]</code>) and the mapping is kept in a local vault. That is:</p>
+    <ul>
+      <li><strong>ISO/IEC 20889:2018</strong> — a reversible pseudonymization technique (mapping-based tokenization). This standard defines the vocabulary; ClaimCheck is a local, deterministic instance of it.</li>
+      <li><strong>NIST SP 800-188</strong> (De-Identifying Government Datasets) — describes the same technique family and the re-identification risk that stays with whoever holds the mapping. ClaimCheck's design keeps the mapping on the user's machine, so the re-identification risk stays with the data owner — not a vendor.</li>
+      <li><strong>GDPR Art. 4(5) and Art. 32</strong> — pseudonymization is explicitly named as a safeguard measure. Pseudonymized data is still personal data; ClaimCheck reduces exposure, it does not make data anonymous.</li>
+    </ul>
+    <p>Scrubbing happens <em>before</em> text leaves the machine, and restoration happens <em>after</em> the model's response arrives — including mid-stream. No third party ever sees the mapping.</p>
+  </section>
+
+  <section id="hipaa">
+    <h2>HIPAA Safe Harbor — the 18 identifiers</h2>
+    <p>The most-cited identifier enumeration (45 CFR §164.514(b)(2)). ClaimCheck is a general-purpose tool, not a HIPAA compliance product — but the list is the industry's shared vocabulary for "what counts as PII," so here is recognizer-by-recognizer coverage:</p>
+    <table>
+      <tr><th>#</th><th>Safe Harbor identifier</th><th>Coverage</th><th>Recognizers</th></tr>
+      <tr><td>1</td><td>Names</td><td class="p">Partial</td><td>NER person/org (opt-in, local model)</td></tr>
+      <tr><td>2</td><td>Geography &lt; state (street, city, ZIP)</td><td class="p">Partial</td><td>ADDRESS (US street form), NER locations</td></tr>
+      <tr><td>3</td><td>Dates (except year) related to an individual</td><td class="p">Partial</td><td>DOB, EXPIRY (labeled dates; not arbitrary prose dates)</td></tr>
+      <tr><td>4</td><td>Telephone numbers</td><td class="y">Covered</td><td>PHONE</td></tr>
+      <tr><td>5</td><td>Fax numbers</td><td class="y">Covered</td><td>PHONE (same pattern)</td></tr>
+      <tr><td>6</td><td>Email addresses</td><td class="y">Covered</td><td>EMAIL</td></tr>
+      <tr><td>7</td><td>Social Security numbers</td><td class="y">Covered</td><td>SSN</td></tr>
+      <tr><td>8</td><td>Medical record numbers</td><td class="p">Partial</td><td>ID_LABEL (labeled forms, e.g. <code>MRN 123456</code>)</td></tr>
+      <tr><td>9</td><td>Health plan beneficiary numbers</td><td class="y">Covered</td><td>INSURANCE_ID</td></tr>
+      <tr><td>10</td><td>Account numbers</td><td class="y">Covered</td><td>ACCOUNT, ID_LABEL</td></tr>
+      <tr><td>11</td><td>Certificate/license numbers</td><td class="y">Covered</td><td>DL, MEDICAL_LICENSE</td></tr>
+      <tr><td>12</td><td>Vehicle identifiers / serial numbers</td><td class="n">Not covered</td><td>—</td></tr>
+      <tr><td>13</td><td>Device identifiers / serial numbers</td><td class="n">Not covered</td><td>—</td></tr>
+      <tr><td>14</td><td>URLs</td><td class="n">Not treated as PII</td><td>—</td></tr>
+      <tr><td>15</td><td>IP addresses</td><td class="y">Covered</td><td>IP</td></tr>
+      <tr><td>16</td><td>Biometric identifiers</td><td class="n">Not covered</td><td>—</td></tr>
+      <tr><td>17</td><td>Full-face photos</td><td class="n">N/A</td><td>text-only tool</td></tr>
+      <tr><td>18</td><td>Any other unique identifying number/characteristic</td><td class="p">Partial</td><td>ID_LABEL, FEIN, ROUTING, IBAN, CARD (Luhn-checked)</td></tr>
+    </table>
+    <p>Beyond the 18: API keys, tokens, passwords, PEM private keys, and encoded secrets are also recognized — the credential half of the problem that identifier checklists ignore.</p>
+  </section>
+
+  <section id="nist">
+    <h2>NIST alignment</h2>
+    <h3>SP 800-122 (Protecting the Confidentiality of PII)</h3>
+    <p>ClaimCheck's recognizers map to SP 800-122's identifier categories: direct identifiers (SSN, FEIN, email, phone, passport, license, account numbers) are matched exactly; indirect identifiers (dates, addresses, organization names) are matched where they appear in labeled or structured form. SP 800-122 recommends reducing PII exposure at the point of use — that is precisely the proxy's job: strip before transmit, restore after response.</p>
+    <h3>SP 800-57 (Key Management)</h3>
+    <p>The vault mapping is the sensitive material. It never leaves the machine and lives under the user's profile (<code>~/.sanitize-mcp/vaults/</code> or <code>%USERPROFILE%\.sanitize-mcp\vaults\</code>). Its protection is the user's existing disk-encryption and access-controls posture — ClaimCheck adds no network exposure to it.</p>
+    <h3>SP 800-188 (De-Identification)</h3>
+    <p>800-188's core warning is that de-identified data can be re-linked when mappings leak. ClaimCheck's answer is architectural: the mapping never crosses the wire, so the leak surface is the local disk only.</p>
+  </section>
+
+  <section id="sector">
+    <h2>By sector</h2>
+    <table>
+      <tr><th>Regime</th><th>What it cares about</th><th>Where ClaimCheck helps</th></tr>
+      <tr><td>IRS Pub 1075 (FTI)</td><td>Federal Tax Information must be safeguarded in transit and at rest</td><td>Masks taxpayer identifiers (SSN, EIN/FEIN, account numbers) before text leaves the device — complements required encrypted transport; does not replace it</td></tr>
+      <tr><td>IRC §7216</td><td>Preparer disclosure/use of return information</td><td>Reduces unintentional disclosure of return data into third-party model providers</td></tr>
+      <tr><td>GLBA Safeguards Rule</td><td>Protection of customer financial information</td><td>ACCOUNT, ROUTING, CARD recognizers before financial context reaches an LLM</td></tr>
+      <tr><td>PCI-DSS</td><td>PAN handling (Luhn-validated card numbers)</td><td>CARD recognizer validates with Luhn before masking, matching PCI's PAN definition; CVV/EXPIRY covered too</td></tr>
+      <tr><td>GDPR / state privacy laws</td><td>Pseudonymization as a safeguard (Art. 32); CCPA-CPRA sensitive data</td><td>Local pseudonymization before processing by third-party AI services</td></tr>
+      <tr><td>HIPAA</td><td>18-identifier Safe Harbor list (see above)</td><td>Coverage table above; PHI in prompts masked before egress</td></tr>
+    </table>
+  </section>
+
+  <section id="limits">
+    <h2>Honest limits</h2>
+    <ul>
+      <li><strong>Pseudonymized ≠ anonymous.</strong> Anyone with the vault can restore everything. Treat the vault as the crown jewels: same sensitivity as the original data, on your disk.</li>
+      <li><strong>Alignment ≠ certification.</strong> No certification path exists for PII-detection tools. ClaimCheck uses the standards' vocabulary and identifier lists; it is not "HIPAA certified" (that phrase doesn't exist for software) or PCI-certified.</li>
+      <li><strong>Detection is probabilistic.</strong> Regex + an optional local NER model catch common shapes. Novel formats, unlabeled free-text identifiers, and heavily encoded values can slip through. Use the smoke-test prompt to validate against <em>your</em> data shapes.</li>
+      <li><strong>Dates are partial.</strong> Labeled dates (DOB, expiry) are caught; a bare date in prose generally is not.</li>
+      <li><strong>Vehicle, device and biometric identifiers are out of scope</strong> for text scrubbing today.</li>
+      <li><strong>Complementary, not a DLP replacement.</strong> Email filters and DLP gateways enforce policy on the wire; ClaimCheck removes the PII before the wire exists. Use both.</li>
+    </ul>
+    <div class="note">Coverage current as of ClaimCheck v0.4.3 (23 recognizer types + optional local NER). The full recognizer set ships in the open-source repo — every claim on this page is checkable against <code>Sanitizer.cs</code>.</div>
+  </section>
+</main>
+<footer>
+  <div class="wrap">
+    <p>ClaimCheck — local-first PII pseudonymization for AI agents. MIT-0. No telemetry, no accounts, nothing leaves the machine.</p>
+    <p><a href="/">Home</a> · <a href="https://github.com/saasclawai-org/ClaimCheck">GitHub</a></p>
+  </div>
+</footer>
+</body>
+</html>
