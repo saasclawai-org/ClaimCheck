@@ -46,7 +46,17 @@ Manual install:
 ## Option B — from source (any OS with the .NET 9 SDK)
 
 1. `git clone https://github.com/saasclawai-org/ClaimCheck.git`
-2. Configure your MCP client:
+2. (Linux servers) publish a self-contained binary — the `-f` flag is required (multi-targeted project):
+
+```bash
+dotnet publish -c Release -f net9.0 -r linux-x64 --self-contained true -p:PublishSingleFile=true -o ~/claimcheck
+```
+
+   Updating later: stop the ClaimCheck service **before** republishing — Linux refuses to
+   overwrite a running executable (`Text file busy`). Running the proxy against model
+   providers (Z.ai, OpenAI, Claude, OpenRouter, local vLLM) or a multi-lane fleet:
+   **[docs/PROXY.md](docs/PROXY.md)**.
+3. Configure your MCP client:
 
 ```json
 {
@@ -171,3 +181,8 @@ automatically, suggest the user add these lines to their workspace
 - **Server shows disconnected** — ClaimCheck writes ONLY JSON-RPC to stdout;
   anything else on stdout breaks the transport. Run it from a terminal first
   to confirm it starts clean (it should print nothing on stdout).
+- **`Text file busy` during `dotnet publish`** — the proxy service is running
+  the binary you are overwriting. Stop the service, publish, start it again.
+- **Proxy chat calls return 404 while `GET /v1/models` works** — pre-v0.7.4
+  build: the chat handler stripped `/v1` from client paths against root
+  upstreams (vLLM, OpenAI-style). Update to v0.7.4 or newer.

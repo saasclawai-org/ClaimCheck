@@ -206,6 +206,14 @@ vaults are per-instance namespaces, restorable only through the instance that sc
 them. Saves are atomic and locked (concurrent-safe); upstream connection failures return
 a clean 502, never a stack-trace 500.
 
+**Scrub coverage:** only `POST` requests ending in `chat/completions` are scrubbed and
+restored — every other path (embeddings, image endpoints, native provider APIs like
+Anthropic's `/v1/messages` or OpenAI's Responses API) is forwarded verbatim. Reach
+providers through OpenAI-compatible surfaces. **[docs/PROXY.md](docs/PROXY.md)** has the
+provider-by-provider upstream URLs (Z.ai, OpenAI, Claude's compat layer, OpenRouter,
+local vLLM), a systemd template unit for running a multi-lane fleet, path-composition
+rules, update ordering, and the reversal-probe verification.
+
 **Honest limits:** the proxy covers the model-provider hop only — the chat surface
 (Telegram, Discord, ...) still sees whatever was pasted before the proxy could act. And
 model FALLBACK providers configured outside the proxy are not covered.
@@ -218,7 +226,9 @@ Built-in recognizers (regex + validators — deterministic, no ML, no downloads)
 - SSN (with invalid-area guards)
 - Email addresses
 - US phone numbers
-- Credit card numbers (Luhn-validated — random digit strings don't fire) + CVV / expiry dates
+- Credit card numbers — keyword-anchored lines (`Card:`, `Visa`, `Mastercard`, …) masked
+  regardless of checksum validity, plus generic Luhn-validated detection for bare PANs
+  + CVV / expiry dates
 - IBAN
 - AWS access keys
 - GitHub tokens
@@ -313,10 +323,17 @@ Requires .NET 9.
 
 ```bash
 dotnet build -c Release
-python3 test_dotnet.py       # MCP tools: scrub fidelity, no-leak, vault, restore
-python3 test_proxy.py        # proxy: scrub-on-wire, restore-on-response, SSE split handling
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win-x64
+python3 test_dotnet.py        # MCP tools: scrub fidelity, no-leak, vault, restore
+python3 test_proxy.py         # proxy: scrub-on-wire, restore-on-response, SSE split handling
+python3 test_proxy_paths.py   # proxy: upstream path composition (both client shapes)
+python3 test_recognizers.py   # recognizer coverage incl. field-leak regressions
+python3 test_ner.py           # NER tier regression
+dotnet publish -c Release -f net9.0-windows -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win-x64
+dotnet publish -c Release -f net9.0 -r linux-x64 --self-contained true -p:PublishSingleFile=true -o publish/linux-x64
 ```
+
+The `-f` flag is required — the project targets multiple frameworks and publish fails
+without it (`NETSDK1129`).
 
 Cross-compiles from Linux/macOS to Windows (and vice versa) — the publish output is a single
 self-contained executable.
@@ -329,7 +346,7 @@ self-contained executable.
 - [x] Local NER tier for free-text names/addresses (`SANITIZE_NER=1`, local ONNX model)
 - [ ] Hashed-identifier columns (peppered HMAC) for database lookups
 - [ ] Pluggable recognizer packs
-- [ ] OS-keychain / DPAPI vault encryption
+- [x] Vault encryption at rest — DPAPI on Windows, AES-GCM password mode everywhere (`SANITIZE_VAULT_PASSWORD`)
 - [ ] OCR pass for scanned documents
 
 ## License
