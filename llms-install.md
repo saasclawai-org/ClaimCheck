@@ -92,6 +92,12 @@ Vault encryption (v0.6.0+): on Windows, vault files are DPAPI-encrypted at rest 
 Set `SANITIZE_VAULT_PASSWORD` for portable AES-GCM password mode (forgotten password =
 mappings unrecoverable). Linux defaults to plaintext with 0600 perms.
 
+Canonical scrub verification (the FEIN-reversal probe): send the model fake data and ask it to
+spell the FEIN digits in REVERSE order. A model that received only `[FEIN_1]` cannot do it — it will
+refuse, quote the token, or spell the label backwards. If it produces reversed real digits, the raw
+value reached the model and the scrub failed. Unambiguous in both directions, model-side, immune to
+restore confusion.
+
 Status: `ClaimCheck status` (human-readable) or `ClaimCheck status --json`
 (machines; exit code 3 = proxy not detected). Reports whether the scrub proxy
 is running (port, upstream, request/scrubbed counters on 0.3.0+), NER mode,
