@@ -25,12 +25,14 @@ Consequence: reach every provider through an **OpenAI-compatible
 | Provider | `--upstream` value | Client base URL |
 |---|---|---|
 | Local vLLM / Ollama / LM Studio | `http://127.0.0.1:8008` | `http://127.0.0.1:18008` |
-| Z.ai (coding plan) | `https://api.z.ai/api/coding/paas/v4/` | `http://127.0.0.1:18009/api/coding/paas/v4` |
-| OpenAI | `https://api.openai.com/v1/` | `http://127.0.0.1:18010/v1` |
-| Claude (OpenAI-compat layer) | `https://api.anthropic.com/v1/` | `http://127.0.0.1:18011/v1` |
-| OpenRouter (many providers, one key) | `https://openrouter.ai/api/v1/` | `http://127.0.0.1:18012/v1` |
+| Z.ai (coding plan) | `https://api.z.ai/api/coding/paas/v4/` | `http://127.0.0.1:18010/api/coding/paas/v4` |
+| OpenAI | `https://api.openai.com/v1/` | `http://127.0.0.1:18011/v1` |
+| Claude (OpenAI-compat layer) | `https://api.anthropic.com/v1/` | `http://127.0.0.1:18012/v1` |
+| OpenRouter (many providers, one key) | `https://openrouter.ai/api/v1/` | `http://127.0.0.1:18013/v1` |
 
-Port convention: proxy ports simply ascend as lanes are added (18008, 18009, …) — each lane's real values live in its `lane-<name>.env` file, so the table is illustrative, not fixed.
+Port convention: proxy ports ascend — each new lane takes the next free port (18008,
+18009, …); if a candidate is occupied, skip it. Values live in each lane's
+`lane-<name>.env`, so the table is illustrative, not fixed.
 
 API keys live in the client, as normal — the `Authorization` header forwards
 untouched and the proxy stores no credentials. The vault stays on the proxy
