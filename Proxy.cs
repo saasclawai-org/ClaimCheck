@@ -193,7 +193,14 @@ public static class Proxy
             return;
         }
 
-        var rest = path.StartsWith("v1/") ? path[3..] : path;
+        var rest = path;
+        // Strip a client-supplied /v1/ only when the upstream carries its own provider
+        // prefix (legacy zai-shape upstreams). Root upstreams (vLLM/OpenAI-style lanes)
+        // serve /v1/... themselves — stripping lands on /chat/completions and 404s
+        // (2026-10-26 predator field report).
+        var upPath = new Uri(_upstream).AbsolutePath.TrimEnd('/');
+        if (upPath.Length > 0 && rest.StartsWith("v1/"))
+            rest = rest[3..];
         rest = StripUpstreamPrefix(rest);
         using var req = new HttpRequestMessage(HttpMethod.Post, _upstream + rest.TrimStart('/'));
         if (ctx.Request.Headers.TryGetValue("Authorization", out var auth))

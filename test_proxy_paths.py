@@ -142,6 +142,24 @@ def main():
         proc.wait(timeout=10)
         shutil.rmtree(home, ignore_errors=True)
 
+    # ---- Case C: root upstream + /v1 client path (vLLM/OpenAI-style lanes, 2026-10-26) ----
+    # HandleChat must NOT strip the client's /v1 when the upstream has no provider prefix:
+    # stripping lands on /chat/completions and vLLM 404s. Regression for the predator lane.
+    HITS.clear()
+    proc, base, errlog, home = start_proxy(stub + "/")
+    try:
+        request(base, "/v1/chat/completions", "POST")
+        request(base, "/v1/models", "GET")
+        wait_hits(2)
+        if HITS[0] != "/v1/chat/completions":
+            failures.append(f"C1 root upstream /v1 POST: stub saw {HITS[0]!r}, want '/v1/chat/completions' (v1 stripped?)")
+        if HITS[1] != "/v1/models":
+            failures.append(f"C2 root upstream /v1 GET: stub saw {HITS[1]!r}, want '/v1/models'")
+    finally:
+        proc.terminate()
+        proc.wait(timeout=10)
+        shutil.rmtree(home, ignore_errors=True)
+
     srv.shutdown()
 
     if failures:
