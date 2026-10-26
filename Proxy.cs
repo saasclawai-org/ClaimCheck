@@ -271,6 +271,8 @@ public static class Proxy
         var (scrubbed, n) = ScrubString(withEncoded, vault);
         var (gzText, gzFindings) = Gazetteer.Scrub(scrubbed, vault);
         if (gzFindings.Count > 0) { scrubbed = gzText; n += gzFindings.Count; }
+        var (ccText, ccFindings) = CustomClients.ScrubCustom(scrubbed, vault);
+        if (ccFindings.Count > 0) { scrubbed = ccText; n += ccFindings.Count; }
         var (entText, entFindings) = EntityRecognizer.Scrub(scrubbed, vault);
         if (entFindings.Count > 0) { scrubbed = entText; n += entFindings.Count; }
         if (Ner.Enabled)

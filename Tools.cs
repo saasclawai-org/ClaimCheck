@@ -35,6 +35,14 @@ public static class Tools
             findings.AddRange(gzFindings);
             lines = gzText.Split('\n').ToList();
         }
+        CustomClients.Load();
+        var (ccText, ccFindings) = CustomClients.ScrubCustom(joined, vault);
+        if (ccFindings.Count > 0)
+        {
+            joined = ccText;
+            findings.AddRange(ccFindings);
+            lines = ccText.Split('\n').ToList();
+        }
         var (entText, entFindings) = EntityRecognizer.Scrub(joined, vault);
         if (entFindings.Count > 0)
         {

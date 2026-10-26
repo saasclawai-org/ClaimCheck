@@ -4,6 +4,15 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ClaimCheck;
 
+if (args.Length > 0 && args[0] == "import-clients")
+{
+    if (args.Length < 2) { Console.Error.WriteLine("usage: ClaimCheck import-clients <csv-or-text-file>"); return 1; }
+    CustomClients.ImportFrom(args[1]);
+    CustomClients.Load();
+    Console.Out.WriteLine($"imported {CustomClients.Count} client names -> {CustomClients.DataPath}");
+    return 0;
+}
+
 if (args.Length > 0 && args[0] == "restore")
 {
     Restore.Run(args);
