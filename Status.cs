@@ -101,7 +101,7 @@ public static class Status
 
     private static (string Mode, bool Cached) NerStatus()
     {
-        if (!Ner.Enabled) return ("off (SANITIZE_NER=0 to disable)", false);
+        if (!Ner.Enabled) return ("off (SANITIZE_NER=1 to enable)", false);
         var modelDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claimcheck", "models",
             string.Join('_', Ner.ModelRepo.Split('/')));

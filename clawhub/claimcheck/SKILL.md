@@ -1,7 +1,7 @@
 ---
 name: claimcheck
 description: Sanitize PII/secrets (FEIN, SSN, names, credentials) from text or files with the local ClaimCheck CLI before anything leaves the machine; reversible via the local vault.
-version: 1.0.5
+version: 1.0.6
 metadata:
   openclaw:
     emoji: "🛡️"
@@ -9,7 +9,7 @@ metadata:
     envVars:
       - name: SANITIZE_NER
         required: false
-        description: On by default. Set to 0 to disable the NER tier (free-text names/orgs/locations; ~109MB model cached on first use).
+        description: Off by default. Set to 1 to enable the NER tier (free-text names/orgs/locations; ~109MB model cached on first use).
       - name: SANITIZE_VAULT_PASSWORD
         required: false
         description: Set to a password to encrypt vault files at rest (AES-GCM). On Windows, vaults are DPAPI-encrypted by default without it.

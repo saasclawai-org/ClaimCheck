@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClaimCheck — field test: what our PII proxy caught (and what it missed)</title>
+<meta name="description" content="We ran ClaimCheck, our local PII proxy for AI coding sessions, against a live Cline session with fake client data. Here's what worked, what didn't, and why the ML layer ships off by default.">
+<link rel="canonical" href="https://claimcheck.saasclaw.ai/field-test.html">
+<meta property="og:title" content="ClaimCheck field test: what our PII proxy caught (and missed)">
+<meta property="og:description" content="A live AI coding session with fake client data. 13 value types masked, the model confirmed it never saw the real digits — and the ML name layer was silently dead. The honest field report.">
+<meta property="og:url" content="https://claimcheck.saasclaw.ai/field-test.html">
+<meta property="og:type" content="article">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0d1117; color: #c9d1d9; font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+  a { color: #2dd4bf; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1px 6px; font-size: .9em; }
+  header { border-bottom: 1px solid #21262d; padding: 14px 0; }
+  header .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .brand { font-weight: 700; color: #e6edf3; font-size: 17px; }
+  nav a { margin-left: 18px; color: #8b949e; font-size: 14px; }
+  nav a:hover { color: #2dd4bf; }
+  h1 { color: #e6edf3; font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 40px 0 16px; }
+  .sub { font-size: 18px; color: #8b949e; margin: 0 0 12px; }
+  .date { color: #6e7681; font-size: 13.5px; margin: 0 0 28px; }
+  section { padding: 30px 0; border-top: 1px solid #21262d; }
+  h2 { color: #e6edf3; font-size: 22px; margin: 0 0 12px; }
+  p { margin: 0 0 14px; }
+  .ph { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: rgba(45,212,191,.12); border: 1px solid rgba(45,212,191,.45); color: #2dd4bf; border-radius: 8px; padding: 2px 10px; font-size: .82em; white-space: nowrap; }
+  .note { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 14.5px; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #21262d; vertical-align: top; }
+  th { color: #8b949e; font-weight: 600; }
+  .y { color: #3fb950; font-weight: 600; }
+  .n { color: #f85149; font-weight: 600; }
+  .cta-final { text-align: center; padding: 44px 0; }
+  .cta-final h2 { margin-bottom: 20px; }
+  footer { border-top: 1px solid #21262d; padding: 26px 0 40px; color: #6e7681; font-size: 13.5px; }
+  footer p { margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand">🛡️ ClaimCheck</div>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/standards.html">Standards</a>
+      <a href="https://github.com/saasclawai-org/ClaimCheck">GitHub</a>
+    </nav>
+  </div>
+</header>
+<main class="wrap">
+  <h1>We tested our PII proxy on a real AI session. Here's what we found.</h1>
+  <p class="sub">A live Cline session, fake client data, and a local scrubbing proxy between the model and everything else.</p>
+  <p class="date">October 26, 2026 · 12 min read</p>
+
+  <section>
+    <h2>The setup</h2>
+    <p>ClaimCheck sits between your AI coding assistant and the model provider. Everything the assistant sends — prompts, file reads, pasted logs — gets scrubbed locally before it reaches the provider, and the provider's response gets the real values restored on the way back. The mapping never leaves your machine.</p>
+    <p>We pointed Cline at the proxy with a fake client record and ran a live session. The data looked like real payroll work: a FEIN, an SSN, a bank account, a client name, a company, dates, a VIN, an IMEI, a card number. All fake — but shaped like the real thing.</p>
+  </section>
+
+  <section>
+    <h2>What worked: everything with a label</h2>
+    <p>The FEIN was masked. The SSN was masked. The bank account, the email, the password, the API key, the dates, the VIN, the IMEI — thirteen value types across the session, every one replaced with a stable placeholder before the request left the machine.</p>
+    <p>The model confirmed it. Asked to list what it received, it enumerated the placeholders — <span class="ph">[FEIN_2]</span>, <span class="ph">[SSN_2]</span>, <span class="ph">[ACCOUNT_2]</span> — and noted which values arrived as plain text instead. Asked to state the FEIN, it refused: <em>"no actual FEIN number was provided, so I can't tell you the real digits, and I won't invent one."</em></p>
+    <p>That refusal is the product working. The model couldn't state the FEIN because the FEIN wasn't in its context. The only place the real digits existed was the user's machine.</p>
+  </section>
+
+  <section>
+    <h2>The probe that proves it</h2>
+    <p>Here's the test we now run on every PII tool we evaluate — including ours. Send the model fake data, then ask it to <strong>spell the sensitive value backwards, digit by digit</strong>.</p>
+    <p>If the tool scrubbed correctly, the model only ever saw a placeholder token. It can't reverse what it never had. In our test, the model spelled the <em>placeholder label</em> backwards — proving the only "FEIN" in its context was the tag <span class="ph">[FEIN_2]</span>, not the number.</p>
+    <p>If the tool didn't scrub, the model spells the real digits backwards without hesitation. No ambiguity, no interpretation — the model either had the data or it didn't.</p>
+    <p><strong>Run this probe on any PII tool you use.</strong> It's model-side, unambiguous in both directions, and immune to the "restored vs never-scrubbed" confusion that makes client-side testing hard.</p>
+  </section>
+
+  <section>
+    <h2>What didn't work: the name layer was silently dead</h2>
+    <p>The client's name — the one value with no format to pattern-match — reached the model in plain text. Not because the scrubber failed; because the layer that catches free-text names (a local NER model) had <strong>silently disabled itself</strong> on the test machine.</p>
+    <p>The root cause: a stale native runtime library from an earlier build, sitting in the install folder, shadowing the newer one bundled with the current exe. The NER engine initialized against the old library, threw a version error, caught it, and turned itself off — while the status output kept saying it was on, because the model <em>files</em> were fine. Only the runtime that runs them wasn't.</p>
+    <p>The model's own answer made the gap visible: asked about the client's name, it stated the letter count and the last letter with confidence — something it couldn't have done from a placeholder token.</p>
+    <div class="note"><strong>The lesson generalizes:</strong> any tool with a "silently degrade on failure" path will eventually degrade silently. If a protection layer can turn itself off, the status output must say so — loudly, in the same place the "on" claim lives.</div>
+  </section>
+
+  <section>
+    <h2>The cost problem nobody budgets for</h2>
+    <p>Even when the name layer works, it's the most expensive part of the pipeline by two orders of magnitude. The regex tier over a full 1M-token request: <strong>1.4 seconds</strong>, all 26 recognizers. The NER model over the same text: <strong>3–16 minutes on CPU</strong> — thousands of inference windows, each a full model pass.</p>
+    <p>That's why ClaimCheck ships with the name layer off by default. The regex tier catches every labeled value at any context size for free. The NER layer is opt-in — for sessions with real client data where free-text names are the threat that matters.</p>
+    <p>The honest framing: labeled values (FEINs, SSNs, accounts, cards) are the high-precision, high-recall layer — the values that identify a business. Free-text names are the layer that identifies a person. Both matter. They don't cost the same to protect.</p>
+  </section>
+
+  <section>
+    <h2>What we changed</h2>
+    <table>
+      <tr><th>Change</th><th>Why</th></tr>
+      <tr><td>NER ships off by default</td><td>The regex tier covers labeled values at any size; NER is opt-in for client-data sessions</td></tr>
+      <tr><td>The installer purges stale runtime libraries</td><td>The silent-degradation path can't recur on an updated install</td></tr>
+      <tr><td>The exes bundle their own native runtime</td><td>Fully self-contained — immune to whatever dll versions exist on the machine</td></tr>
+      <tr><td>Status reports the NER runtime state</td><td>"On" now means the engine initialized, not just that the model files exist</td></tr>
+      <tr><td>The FEIN-reversal probe documented</td><td>The canonical verification any PII tool should pass</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>The takeaway</h2>
+    <p>ClaimCheck catches what it catches and tells you what it doesn't. The regex tier: 26 value types, deterministic, no cap, effectively free at any context size. The name layer: probabilistic, English-trained, off by default, opt-in when the threat is live.</p>
+    <p>Run the reversal probe on whatever PII tool you use — ours or anyone else's. If the model can't spell the sensitive value backwards, the tool worked. If it can, you have a leak and a conversation to have with the vendor.</p>
+  </section>
+
+  <div class="cta-final">
+    <h2>Your AI assistant doesn't need your client's <span class="ph">[FEIN_1]</span></h2>
+    <p><a class="btn" href="/#install" style="color:#e6edf3;font-weight:600;">Install ClaimCheck</a> &nbsp; <a class="btn" href="/standards.html" style="color:#2dd4bf;">Standards alignment</a></p>
+  </div>
+</main>
+<footer>
+  <div class="wrap">
+    <p>ClaimCheck — local-first PII pseudonymization for AI agents. MIT-0. No telemetry, no accounts, nothing leaves the machine.</p>
+    <p><a href="/">Home</a> · <a href="/standards.html">Standards</a> · <a href="https://github.com/saasclawai-org/ClaimCheck">GitHub</a></p>
+  </div>
+</footer>
+</body>
+</html>
