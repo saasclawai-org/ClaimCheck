@@ -35,6 +35,13 @@ public static class Tools
             findings.AddRange(gzFindings);
             lines = gzText.Split('\n').ToList();
         }
+        var (entText, entFindings) = EntityRecognizer.Scrub(joined, vault);
+        if (entFindings.Count > 0)
+        {
+            joined = entText;
+            findings.AddRange(entFindings);
+            lines = entText.Split('\n').ToList();
+        }
         var (nerText, nerFindings) = Ner.Scrub(joined, vault);
         if (nerFindings.Count > 0)
         {

@@ -15,6 +15,13 @@ public static class Gazetteer
     public static bool Loaded => _names is not null;
     public static int NameCount => _names?.Count ?? 0;
 
+    /// <summary>Check if a single name is in the gazetteer (any casing).</summary>
+    public static bool HasName(string name)
+    {
+        EnsureLoaded();
+        return _names?.Contains(name) ?? false;
+    }
+
     public static void EnsureLoaded()
     {
         if (_names is not null) return;
