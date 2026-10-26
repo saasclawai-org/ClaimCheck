@@ -29,6 +29,8 @@ TEXT = (
     "ssn: 123-45-6789\n"
     "mail: jane.doe@acmefacilities.com\n"
     "card: 4111 1111 1111 1111\n"
+    "card: 5500 0000 5555 5559\n"
+    "iban: XX00 1111 2222 3333 4444 5555 6666 7777 00\n"
     "iban: GB29 NWBK 6016 1331 9268 1970\n"
     f"aws: {AWS_EXAMPLE}\n"
     f"gh: {GH_EXAMPLE}\n"
@@ -79,6 +81,10 @@ async def main():
                 assert raw not in out, f"regression leak: {raw}"
             for raw in ("account #12344", "customer #98765"):
                 assert raw not in out, f"labeled-id leak: {raw}"
+            # 2026-10-26 field-leak regressions (Norman's NER-off proxy test)
+            assert "5500 0000 5555 5559" not in out, "keyword-anchored card failing Luhn leaked"
+            assert "1111 2222" not in out, "long IBAN fragmented (recognizer ordering)"
+            assert "5555 6666" not in out, "long IBAN tail leaked"
 
             # word-boundary invariant: no placeholder against a leftover letter/digit
             assert not re.search(r"\[[A-Z_]+_\d+\][A-Za-z0-9]", out), f"partial-word leak: {out!r}"
