@@ -49,6 +49,14 @@ TEXT = (
     "bank acct no: 12345678\n"
     "account #12344\ncustomer #98765\n"
     "seen 03/15/2024\nvin 1HGCM82633A004352\nimei 490154203237518\n"
+    # 2026-10-26 audit: password anchoring variants (JSON, quoted .env, YAML, prefixed, secret)
+    'password="Hunter2Quoted"\n'
+    '"password": "Hunter2Json"\n'
+    'password: Hunter2Yaml\n'
+    'DB_PASSWORD=dbpassw0rd\n'
+    'client_secret=clisecret1\n'
+    'bank_account=9876543210\n'
+    'your password appears below\n'
 )
 
 async def main():

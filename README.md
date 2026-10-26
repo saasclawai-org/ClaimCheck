@@ -235,7 +235,7 @@ Built-in recognizers (regex + validators — deterministic, no ML, no downloads)
 - `sk-` / `sk_` API keys
 - Slack tokens
 - JWTs
-- Connection-string passwords (`Password=` / `Pwd=` — value masked, key preserved)
+- Passwords & secrets behind `password` / `pwd` / `passwd` / `passphrase` / `secret` with `:` or `=` — JSON (`"password": "…"`), YAML, quoted or plain .env, prefixed keys (`DB_PASSWORD=…`, `client_secret=…`); value masked, label and syntax preserved
 - PEM private-key blocks (BEGIN→END, whole block)
 - Encoded dumps (base64/hex) — decoded and masked before matching
 - Dates of birth, passport numbers, driver's licenses, bank routing numbers, IP addresses

@@ -33,20 +33,18 @@ auth_hdr=()
 [ -n "$AUTH" ] && auth_hdr=(-H "Authorization: $AUTH")
 
 # POST a chat completion through the lane; prints the message content.
+# Body is built via python json.dumps so content with quotes/newlines escapes properly.
+chat_body() { # $1 = content → JSON request body
+  python3 -c 'import json,sys
+print(json.dumps({"model": sys.argv[2], "messages": [{"role": "user", "content": sys.argv[1]}]}))' "$1" "$MODEL"
+}
+
 chat_content() {
   curl -s -m 180 "$BASE$CHAT_PATH" -H 'Content-Type: application/json' \
-    "${auth_hdr[@]}" \
-    -d '{"model":"'"$MODEL"'","messages":[{"role":"user","content":'"$1"'}]}' \
+    "${auth_hdr[@]}" -d "$(chat_body "$1")" \
   | python3 -c 'import json,sys
 try: print(json.load(sys.stdin)["choices"][0]["message"].get("content") or "")
 except Exception: print("")'
-}
-
-# Same, but prints only the HTTP status code.
-chat_code() {
-  curl -s -m 180 -o /dev/null -w '%{http_code}' "$BASE$CHAT_PATH" \
-    -H 'Content-Type: application/json' "${auth_hdr[@]}" \
-    -d '{"model":"'"$MODEL"'","messages":[{"role":"user","content":'"$1"'}]}'
 }
 
 status_field() { # $1 = json key from the proxy /status endpoint
@@ -124,6 +122,18 @@ if [ "$DELTA" -ge 4 ] 2>/dev/null; then
 else
   bad "T4 multi-type scrub (vault delta $DELTA, want >=4) — is SANITIZE working on this lane?"
 fi
+
+# T4b: password anchoring variants (2026-10-26 audit finding) — JSON, quoted .env,
+# YAML and prefixed keys must all mint PASSWORD entries (4 distinct secrets).
+PV1="H2Quote$RANDOM$RANDOM"; PV2="H2Json$RANDOM$RANDOM"
+PV3="H2Yaml$RANDOM$RANDOM"; PV4="H2Prefix$RANDOM$RANDOM"
+BEFORE="$(vault_count)"
+R="$(chat_content "password=\"$PV1\" ; \"password\": \"$PV2\" ; password: $PV3 ; DB_PASSWORD=$PV4 - confirm received.")"
+AFTER="$(vault_count)"
+DELTA=$(( AFTER - BEFORE ))
+[ "$DELTA" -ge 4 ] 2>/dev/null && ok "T4b password variants (vault +$DELTA: quoted, JSON, YAML, prefixed)" \
+                                || bad "T4b password variants (vault delta $DELTA, want >=4)"
+printf '%s' "$R" | grep -qF "$PV1" && note "T4b restore visible (quoted variant rehydrated)"
 
 # T5: concurrency smoke — 5 parallel chats must all come back 200.
 # One retry: a transient upstream blip (or a tiny-backlog test stub) can drop a

@@ -115,9 +115,12 @@ vault size, and which MCP hosts have ClaimCheck wired.
 
 ## Recognized by default
 
-FEIN, SSN, email, phone, credit cards (Luhn-checked), IBAN, AWS access/secret
+FEIN, SSN, email, phone, credit cards (keyword-anchored + Luhn-checked for bare
+PANs), IBAN, AWS access/secret
 keys, GitHub tokens (ghp_/gho_/github_pat_), Slack tokens, generic API keys
-(sk-, AKIA...), JWTs, connection-string passwords (Password=/Pwd=), PEM private
+(sk-, AKIA...), JWTs, passwords & secrets in JSON/YAML/.env/quoted/prefixed
+styles (`password=x`, `"password": "x"`, `password: x`, `DB_PASSWORD=`,
+`client_secret=`), PEM private
 key blocks, base64/hex encoded blobs, CVV, card expiry, dates of birth, passport
 numbers, driver's licenses, bank routing numbers, IP addresses, street addresses,
 medical license numbers, insurance member IDs. Add your own via

@@ -81,7 +81,13 @@ public static class Sanitizer
         ("API_KEY",    new Regex(@"\bsk[-_][A-Za-z0-9_-]{16,}\b"), null),
         ("SLACK_TOKEN",new Regex(@"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), null),
         ("JWT",        new Regex(@"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*"), null),
-        ("PASSWORD",   new Regex(@"(?<=\b(?:password|pwd)\s*=\s*)[^\s;'""&]+", RegexOptions.IgnoreCase), null),
+        // Passwords & secrets behind password/pwd/passwd/passphrase/secret + : or = — covers
+        // JSON ("password": "x"), YAML (password: x), quoted .env (password="x"), prefixed keys
+        // (DB_PASSWORD=x, CLIENT_SECRET=x) and plain password=x. Label + value are masked as one
+        // span (the placeholder name carries the type); quoted values may contain spaces.
+        // (2026-10-26 professional-audit finding: the old = -anchored pattern leaked the
+        // JSON/YAML/quoted/prefixed variants.)
+        ("PASSWORD",   new Regex(@"(?i)(?:^|(?<=[^A-Za-z0-9]))[""']?(?:password|passwd|pwd|passphrase|secret)[""']?\s*[:=]\s*(""[^""\r\n]*""|'[^'\r\n]*'|[^\s,;""'&\}\[\]]+)"), null),
         ("CVV",            new Regex(@"(?i)\b(?:cvv|cvc|card verification(?: code)?|security code)\s*[:=]\s*\d{3,4}\b"), null),
         ("EXPIRY",         new Regex(@"(?i)\b(?:exp(?:ires?|iry)?|valid thru|good thru)\s*[:=]?\s*(?:0[1-9]|1[0-2])[/-]\d{2,4}\b"), null),
         ("DOB",            new Regex(@"(?i)\b(?:dob|date of birth|born on)\s*[:=]?\s*\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b"), null),
@@ -95,7 +101,7 @@ public static class Sanitizer
         ("IP",             new Regex(@"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b"), null),
         ("MEDICAL_LICENSE",new Regex(@"(?i)\b(?:medical\s+lic(?:ense)?|lic(?:ense)?)\s*(?:no\.?|number|#)?\s*[:=]?\s*[A-Z]{2}-[A-Z]{2}-\d{4,8}\b"), null),
         ("INSURANCE_ID",   new Regex(@"(?i)\b(?:member|policy|insurance)\s*(?:id|#|number)?\s*[:=]?\s*[A-Z]{2,5}[- ]\d{4,12}\b"), null),
-        ("ACCOUNT",        new Regex(@"(?i)\b(?:bank\s+)?(?:acct|account)\s*(?:no\.?|number|#)?\s*[:=]?\s*\d{4,17}\b"), null),
+        ("ACCOUNT",        new Regex(@"(?i)(?<![A-Za-z])(?:bank\s+)?(?:acct|account)\s*(?:no\.?|number|#)?\s*[:=]?\s*\d{4,17}\b"), null),
         ("ID_LABEL",       new Regex(@"(?i)\b(?:customer|client|invoice|policy|case|member|patient|mrn|record|serial|sn|device|biometric|fingerprint|voiceprint|claim|order|ticket|file|ref(?:erence)?|project|contract|vendor|supplier|emp(?:loyee)?)\s*(?:no\.?|number|#|id)?\s*[:=]?\s*\d{4,17}\b"), null),
         ("VIN",            new Regex(@"(?i)\bvin\s*(?:no\.?|number|#)?\s*[:=]?\s*[A-HJ-NPR-Z0-9]{17}\b"), null),
         ("ADDRESS",        new Regex(@"(?i)\b\d{1,5}\s+(?:[A-Z][a-z]+\s){1,4}(?:street|st|avenue|ave|blvd|boulevard|road|rd|drive|dr|lane|ln|court|ct|way|terrace|ter|place|pl|circle|cir)\.?,?\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*,?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?\b"), null),
