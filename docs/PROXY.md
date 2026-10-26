@@ -114,6 +114,17 @@ Without `SANITIZE_VAULT_PASSWORD` the vault is **plaintext JSON on Linux/macOS**
 (Windows uses DPAPI automatically). On a server, set it — then re-mint: delete
 the existing vault file once and let the next request recreate it encrypted.
 
+## Optional: Presidio detection backend
+
+`SANITIZE_PRESIDIO_URL` points a lane at a live [Presidio analyzer](https://microsoft.github.io/presidio/)
+service (e.g. the official container on :3000) for multi-language NER and international entity
+formats (crypto wallets, country IDs, …). Findings are tier-separated — probabilistic, labeled by
+entity type, masked through the same vault — and the pass is skipped fail-soft when the service is
+down. Tune with `SANITIZE_PRESIDIO_SCORE` (default 0.4) and `SANITIZE_PRESIDIO_ENTITIES`
+(comma-separated allowlist; `DATE_TIME`/`TIME` are excluded by default — they flag benign prose).
+Put the variable in `common.env` to enable it fleet-wide, or in a single lane's env file to scope
+it to one lane.
+
 ## Updating a deployed proxy
 
 The single-file binary cannot be overwritten while any lane is running it

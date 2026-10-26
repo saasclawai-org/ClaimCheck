@@ -141,6 +141,8 @@ public static class Proxy
             nerFailed = Ner.Failed,
             nerFailReason = Ner.FailReason,
             nerProvider = Ner.Provider,
+            presidio = Presidio.Enabled ? ("on -> " + Presidio.Url) : "off",
+            presidioFailures = Presidio.ConsecutiveFailures,
             startedUtc = StartedUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'"),
         }));
         app.Map("/{**path}", async (HttpContext ctx, string? path) =>
@@ -282,6 +284,8 @@ public static class Proxy
         if (ccFindings.Count > 0) { scrubbed = ccText; n += ccFindings.Count; }
         var (entText, entFindings) = EntityRecognizer.Scrub(scrubbed, vault);
         if (entFindings.Count > 0) { scrubbed = entText; n += entFindings.Count; }
+        var (preText, preFindings) = Presidio.Scrub(scrubbed, vault);
+        if (preFindings.Count > 0) { scrubbed = preText; n += preFindings.Count; }
         if (Ner.Enabled)
         {
             var (nerText, nerFindings) = Ner.Scrub(scrubbed, vault);

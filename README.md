@@ -214,6 +214,15 @@ provider-by-provider upstream URLs (Z.ai, OpenAI, Claude's compat layer, OpenRou
 local vLLM), a systemd template unit for running a multi-lane fleet, path-composition
 rules, update ordering, and the reversal-probe verification.
 
+**Optional detection backend:** `SANITIZE_PRESIDIO_URL=http://127.0.0.1:3000` points the
+proxy at a live [Presidio](https://microsoft.github.io/presidio/) analyzer service for
+multi-language NER and international entity formats (crypto wallets, country IDs, …).
+Presidio findings are tier-separated — probabilistic, labeled by entity type, masked
+through the same vault with stable placeholders and restore — and the pass is skipped
+fail-soft when the service is down. Tune with `SANITIZE_PRESIDIO_SCORE` (default 0.4)
+and `SANITIZE_PRESIDIO_ENTITIES` (comma-separated allowlist; `DATE_TIME`/`TIME` are
+excluded by default — they flag benign prose).
+
 **Honest limits:** the proxy covers the model-provider hop only — the chat surface
 (Telegram, Discord, ...) still sees whatever was pasted before the proxy could act. And
 model FALLBACK providers configured outside the proxy are not covered.

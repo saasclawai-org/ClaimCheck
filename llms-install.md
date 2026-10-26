@@ -92,6 +92,17 @@ downloads a ~109MB quantized BERT model (ONNX) to `~/.claimcheck/models/`
 Tunables: `SANITIZE_NER_THRESHOLD` (default 0.5), `SANITIZE_NER_MODEL` (any
 HuggingFace token-classification repo), `SANITIZE_NER_DEBUG=1` (per-token trace).
 
+## Optional: Presidio detection backend (bring your own detector)
+
+If a [Presidio analyzer](https://microsoft.github.io/presidio/) service is reachable, set
+`SANITIZE_PRESIDIO_URL` (e.g. `http://127.0.0.1:3000`) in the ClaimCheck process
+environment: entities Presidio detects are masked through the same vault with stable
+placeholders and restore. Tier-separated (probabilistic — labeled by entity type, never
+part of the validator-backed guarantee tier), fail-soft when the service is down. Tune
+with `SANITIZE_PRESIDIO_SCORE` (default 0.4) and `SANITIZE_PRESIDIO_ENTITIES`
+(comma-separated allowlist; `DATE_TIME`/`TIME` are excluded by default — they flag benign
+prose).
+
 ## Restoring original values (local only)
 
 CLI: `ClaimCheck restore <file|->` maps placeholders back to real values.

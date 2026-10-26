@@ -50,6 +50,13 @@ public static class Tools
             findings.AddRange(entFindings);
             lines = entText.Split('\n').ToList();
         }
+        var (preText, preFindings) = Presidio.Scrub(joined, vault);
+        if (preFindings.Count > 0)
+        {
+            joined = preText;
+            findings.AddRange(preFindings);
+            lines = preText.Split('\n').ToList();
+        }
         var (nerText, nerFindings) = Ner.Scrub(joined, vault);
         if (nerFindings.Count > 0)
         {
@@ -79,6 +86,13 @@ public static class Tools
         var (text2, encCount) = Sanitizer.ScrubEncodedBlobs(text1, vault, patterns);
         var (lines, findings) = Sanitizer.SanitizeLines(text2.Split('\n'), patterns, vault);
         var joined = string.Join('\n', lines);
+        var (preText, preFindings) = Presidio.Scrub(joined, vault);
+        if (preFindings.Count > 0)
+        {
+            joined = preText;
+            lines = preText.Split('\n').ToList();
+            findings.AddRange(preFindings);
+        }
         var (nerText, nerFindings) = Ner.Scrub(joined, vault);
         if (nerFindings.Count > 0)
         {
