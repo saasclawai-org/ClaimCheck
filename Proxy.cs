@@ -269,6 +269,8 @@ public static class Proxy
         var (withPem, pemCount) = Sanitizer.ScrubPemBlocks(text, vault);
         var (withEncoded, encoded) = Sanitizer.ScrubEncodedBlobs(withPem, vault, _patterns);
         var (scrubbed, n) = ScrubString(withEncoded, vault);
+        var (gzText, gzFindings) = Gazetteer.Scrub(scrubbed, vault);
+        if (gzFindings.Count > 0) { scrubbed = gzText; n += gzFindings.Count; }
         if (Ner.Enabled)
         {
             var (nerText, nerFindings) = Ner.Scrub(scrubbed, vault);

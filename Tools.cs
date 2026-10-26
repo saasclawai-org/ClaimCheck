@@ -28,6 +28,13 @@ public static class Tools
         var (text2, encCount) = Sanitizer.ScrubEncodedBlobs(text1, vault, patterns);
         var (lines, findings) = Sanitizer.SanitizeLines(text2.Split('\n'), patterns, vault);
         var joined = string.Join('\n', lines);
+        var (gzText, gzFindings) = Gazetteer.Scrub(joined, vault);
+        if (gzFindings.Count > 0)
+        {
+            joined = gzText;
+            findings.AddRange(gzFindings);
+            lines = gzText.Split('\n').ToList();
+        }
         var (nerText, nerFindings) = Ner.Scrub(joined, vault);
         if (nerFindings.Count > 0)
         {
