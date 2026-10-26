@@ -116,14 +116,15 @@ the existing vault file once and let the next request recreate it encrypted.
 
 ## Updating a deployed proxy
 
-The single-file binary cannot be overwritten while the service is running it
-(`Text file busy`). Stop → publish → start:
+The single-file binary cannot be overwritten while any lane is running it
+(`Text file busy`). The template unit means one binary serves several lanes —
+stop **all** instances, publish, start them again:
 
 ```bash
-sudo systemctl stop claimcheck-proxy@8008
+sudo systemctl stop 'claimcheck-proxy@*'
 dotnet publish -c Release -f net9.0 -r linux-x64 --self-contained true \
   -p:PublishSingleFile=true -o ~/claimcheck
-sudo systemctl start claimcheck-proxy@8008
+sudo systemctl start claimcheck-proxy@8008 claimcheck-proxy@zai
 ```
 
 The `-f net9.0` flag is required — the project targets multiple frameworks and
