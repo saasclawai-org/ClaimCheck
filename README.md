@@ -339,10 +339,16 @@ python3 test_recognizers.py   # recognizer coverage incl. field-leak regressions
 python3 test_ner.py           # NER tier regression
 dotnet publish -c Release -f net9.0-windows -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win-x64
 dotnet publish -c Release -f net9.0 -r linux-x64 --self-contained true -p:PublishSingleFile=true -o publish/linux-x64
+dotnet publish tray/ClaimCheckTray.csproj -c Release -f net9.0-windows -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/win-x64-tray
 ```
 
 The `-f` flag is required — the project targets multiple frameworks and publish fails
 without it (`NETSDK1129`).
+
+Cutting a Windows release zip: use `tools/package-release.sh <version>` — it packages
+ClaimCheck.exe **and** ClaimCheckTray.exe + INSTALL.txt and fails if any is missing.
+The tray hosts the proxy in-process; a zip without the tray exe silently strands
+Windows users on old versions (v0.7.4–v0.8.1 shipped that way).
 
 Cross-compiles from Linux/macOS to Windows (and vice versa) — the publish output is a single
 self-contained executable.

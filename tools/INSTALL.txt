@@ -1,4 +1,4 @@
-ClaimCheck v0.4.2 — local PII pseudonymization for Windows
+ClaimCheck v0.8.1 — local PII pseudonymization for Windows
 ===========================================================
 
 WHAT IT IS
@@ -32,6 +32,13 @@ THE SCRUB PROXY + TRAY (on-wire enforcement)
     Then point your model provider Base URL at the proxy:
       http://127.0.0.1:8766/api/coding/paas/v4
     (keep your real API key in the client - auth passes through untouched)
+
+PRESIDIO TIER (optional, v0.8.0+)
+  Adds multi-language NER + crypto wallets/country IDs via a local analyzer:
+    docker run -d --name presidio --restart unless-stopped -p 3000:3000 mcr.microsoft.com/presidio-analyzer:latest
+    setx SANITIZE_PRESIDIO_URL "http://localhost:3000"   (then restart the proxy)
+  Tune: SANITIZE_PRESIDIO_SCORE (default 0.4), SANITIZE_PRESIDIO_ENTITIES.
+  Fail-soft: analyzer down = pass skipped, everything else still works.
 
 STATUS FROM THE CLI (any OS)
   ClaimCheck status            human-readable: proxy state, NER, vault, wiring
