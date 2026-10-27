@@ -1,4 +1,4 @@
-ClaimCheck v0.8.3 — local PII pseudonymization for Windows
+ClaimCheck v0.8.4 — local PII pseudonymization for Windows
 ===========================================================
 
 WHAT IT IS

@@ -78,6 +78,10 @@ public static class Sanitizer
         ("PHONE",      new Regex(@"(?<![\d-])(\+?1[-. ])?(\(\d{3}\)[- ]|\d{3}[-. ])\d{3}[-. ]\d{4}(?!\d)"), null),
         ("AWS_KEY",    new Regex(@"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), null),
         ("GH_TOKEN",   new Regex(@"\bgh[pousr]_[A-Za-z0-9]{36,255}\b"), null),
+        // v0.8.4: modern provider token prefixes — the classic-prefix rows miss
+        // fine-grained GitHub PATs, Stripe webhook secrets, session cookies and
+        // GitLab/Shopify/npm/pypi tokens (live-project battery leak, 2026-10-27).
+        ("API_KEY",    new Regex(@"(?i)\b(?:github_pat_[A-Za-z0-9_]{22,}|whsec_[A-Za-z0-9]{8,}|sess_[A-Za-z0-9_\-]{8,}|npm_[A-Za-z0-9]{30,}|glpat_[A-Za-z0-9_\-]{20,}|shpat_[A-Za-z0-9]{20,}|pypi-[A-Za-z0-9_]{30,})\b"), null),
         ("API_KEY",    new Regex(@"\bsk[-_][A-Za-z0-9_-]{16,}\b"), null),
         ("SLACK_TOKEN",new Regex(@"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), null),
         ("JWT",        new Regex(@"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*"), null),
@@ -87,7 +91,11 @@ public static class Sanitizer
         // span (the placeholder name carries the type); quoted values may contain spaces.
         // (2026-10-26 professional-audit finding: the old = -anchored pattern leaked the
         // JSON/YAML/quoted/prefixed variants.)
-        ("PASSWORD",   new Regex(@"(?i)(?:^|(?<=[^A-Za-z0-9]))[""']?(?:password|passwd|pwd|passphrase|secret)[""']?\s*[:=]\s*(""[^""\r\n]*""|'[^'\r\n]*'|[^\s,;""'&\}\[\]]+)"), null),
+        ("PASSWORD",   new Regex(@"(?i)(?:^|(?<=[^A-Za-z0-9]))[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*(""[^""\r\n]*""|'[^'\r\n]*'|[^\s,;""'&\}\[\]]+)"), null),
+        // v0.8.4: credentials embedded in scheme://user:pass@host URLs (database URLs,
+        // deploy hooks) — ticket only the creds segment so scheme/host stay readable
+        // for debugging.
+        ("URL_CREDS",  new Regex(@"(?<=[a-z][a-z0-9+.\-]+://)[^\s/:@]+:[^\s/@]+(?=@)"), null),
         ("CVV",            new Regex(@"(?i)\b(?:cvv|cvc|card verification(?: code)?|security code)\s*[:=]\s*\d{3,4}\b"), null),
         ("EXPIRY",         new Regex(@"(?i)\b(?:exp(?:ires?|iry)?|valid thru|good thru)\s*[:=]?\s*(?:0[1-9]|1[0-2])[/-]\d{2,4}\b"), null),
         ("DOB",            new Regex(@"(?i)\b(?:dob|date of birth|born on)\s*[:=]?\s*\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b"), null),

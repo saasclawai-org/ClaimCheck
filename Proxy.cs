@@ -412,6 +412,9 @@ public static class Proxy
         var sb = carries.TryGetValue(key, out var existing) ? existing : (carries[key] = new StringBuilder());
         sb.Append(chunk);
         var drained = DrainRestored(sb, vault);
-        if (drained.Length > 0) parent[field] = drained;
+        // v0.8.4: when the whole chunk is a held-back partial token, the delta must
+        // carry nothing — leaving the original chunk in place leaked the raw fragment
+        // to the client and double-emitted it once the carry completed.
+        parent[field] = drained;
     }
 }
