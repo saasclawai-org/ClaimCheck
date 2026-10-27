@@ -1,14 +1,16 @@
 using System.Text.Json.Nodes;
 
-/// <summary>Tray-owned settings (~/.claimcheck/tray.json). Currently: proxy NER toggle.
-/// Applied to this process's environment BEFORE the proxy starts; Ner.Enabled reads it live,
-/// so toggling takes effect without a proxy restart.</summary>
+/// <summary>Tray-owned settings (~/.claimcheck/tray.json). Currently: proxy NER + Presidio
+/// toggles. Applied to this process's environment BEFORE the proxy starts; Ner.Enabled and
+/// Presidio.Enabled read their env live, so toggling takes effect without a proxy restart.</summary>
 internal static class TrayConfig
 {
     private static readonly string ConfigPath = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claimcheck", "tray.json");
 
     public static bool NerEnabled { get; private set; }
+    public static bool PresidioEnabled { get; private set; } = true;
+    public static string? PresidioUrl { get; private set; }
 
     public static void Load()
     {
@@ -19,9 +21,12 @@ internal static class TrayConfig
                 var node = JsonNode.Parse(File.ReadAllText(ConfigPath));
                 if (node?["nerEnabled"] is JsonValue v && v.TryGetValue<bool>(out var b))
                     NerEnabled = b;
+                if (node?["presidioEnabled"] is JsonValue pv && pv.TryGetValue<bool>(out var pb))
+                    PresidioEnabled = pb;
             }
         }
         catch { /* corrupt config = defaults */ }
+        PresidioUrl = Environment.GetEnvironmentVariable("SANITIZE_PRESIDIO_URL");
         Apply();
     }
 
@@ -29,16 +34,38 @@ internal static class TrayConfig
     {
         NerEnabled = on;
         Apply();
+        Persist();
+    }
+
+    public static void SetPresidio(bool on)
+    {
+        PresidioEnabled = on;
+        Apply();
+        Persist();
+    }
+
+    private static void Persist()
+    {
         try
         {
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(ConfigPath)!);
-            File.WriteAllText(ConfigPath, "{\"nerEnabled\":" + (on ? "true" : "false") + "}\n");
+            File.WriteAllText(ConfigPath,
+                "{\"nerEnabled\":" + (NerEnabled ? "true" : "false")
+                + ",\"presidioEnabled\":" + (PresidioEnabled ? "true" : "false") + "}\n");
         }
         catch { /* best effort */ }
     }
 
-    private static void Apply() =>
+    private static void Apply()
+    {
         Environment.SetEnvironmentVariable("SANITIZE_NER", NerEnabled ? "1" : "0");
+        // Toggle = clear/restore the analyzer URL in THIS process; Presidio.Enabled reads
+        // the env live, so flipping the item takes effect on the next request (fail-soft
+        // skip while off). The URL itself stays owned by the user's environment (setx);
+        // we only remember it for the lifetime of the tray.
+        Environment.SetEnvironmentVariable("SANITIZE_PRESIDIO_URL",
+            PresidioEnabled ? PresidioUrl : null);
+    }
 }
 
 /// <summary>GitHub release check + self-update staging. Update = download the official

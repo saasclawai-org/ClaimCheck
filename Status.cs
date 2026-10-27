@@ -49,7 +49,10 @@ public static class Status
         string VaultSummary,
         string[] McpWiring,
         bool? NerFailed,
-        string? NerFailReason);
+        string? NerFailReason,
+        string? PresidioMode = null,
+        long? PresidioFailures = null,
+        string? PresidioLastFailure = null);
 
     public static Info Collect(int port)
     {
@@ -58,6 +61,9 @@ public static class Status
 
         var (nerMode, nerCached) = NerStatus();
         if (live?.NerProvider is { } prov) nerMode += " · " + prov;
+        var presidioMode = live is not null
+            ? live.Presidio
+            : Presidio.Enabled ? "on -> " + Presidio.Url : null;
         return new Info(
             Version,
             running,
@@ -76,7 +82,8 @@ public static class Status
             nerMode,
             VaultSummary(),
             McpWiring(),
-            live?.NerFailed, live?.NerFailReason);
+            live?.NerFailed, live?.NerFailReason,
+            presidioMode, live?.PresidioFailures, live?.PresidioLastFailure);
     }
 
     private static bool Probe(int port, out ProxyStatusDto? status)
@@ -206,6 +213,20 @@ public static class Status
             Console.Out.WriteLine($"           NER FAILED: {i.NerFailReason}");
             Console.Out.WriteLine("           -> fix the cause, then restart the proxy/tray to retry");
         }
+        if (i.PresidioMode is { } pm)
+        {
+            Console.Out.WriteLine($"scrub presidio  {pm}");
+            if (i.PresidioFailures is { } pf && pf > 0)
+            {
+                Console.Out.WriteLine($"           {pf} consecutive skip{(pf == 1 ? "" : "s")}" +
+                    (i.PresidioLastFailure is { } plf ? $" — last: {plf}" : ""));
+                Console.Out.WriteLine("           -> fail-soft: requests still scrub via the other tiers");
+            }
+        }
+        else
+        {
+            Console.Out.WriteLine("scrub presidio  off (set SANITIZE_PRESIDIO_URL, e.g. the official analyzer container on :3000)");
+        }
         if (i.FailClosed is { } fc2 && !i.ProxyRunning) Console.Out.WriteLine($"fail-closed: {(fc2 ? "on" : "OFF")}");
         Console.Out.WriteLine($"vault dir  {i.VaultSummary}");
         Console.Out.WriteLine("MCP wiring " + (i.McpWiring.Length == 0
@@ -228,5 +249,8 @@ public static class Status
         [property: JsonPropertyName("failClosed")] bool FailClosed,
         [property: JsonPropertyName("nerFailed")] bool? NerFailed,
         [property: JsonPropertyName("nerFailReason")] string? NerFailReason,
-        [property: JsonPropertyName("nerProvider")] string? NerProvider);
+        [property: JsonPropertyName("nerProvider")] string? NerProvider,
+        [property: JsonPropertyName("presidio")] string? Presidio,
+        [property: JsonPropertyName("presidioFailures")] long? PresidioFailures,
+        [property: JsonPropertyName("presidioLastFailure")] string? PresidioLastFailure);
 }

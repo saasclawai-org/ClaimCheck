@@ -30,6 +30,7 @@ internal sealed class TrayApp : ApplicationContext
     private int _port = 8766;
     private readonly ToolStripMenuItem _updateItem;
     private readonly ToolStripMenuItem _nerItem;
+    private readonly ToolStripMenuItem _presidioItem;
     private System.Windows.Forms.Timer? _updateTimer;
     private volatile bool _updateAvailable;
     private volatile bool _updating;
@@ -43,12 +44,15 @@ internal sealed class TrayApp : ApplicationContext
         _updateItem = new ToolStripMenuItem("Check for updates now…", null, async (_, _) => await UpdateClicked());
         _nerItem = new ToolStripMenuItem("NER scrubbing (proxy)", null, (_, _) => NerToggled())
         { CheckOnClick = true, Checked = TrayConfig.NerEnabled };
+        _presidioItem = new ToolStripMenuItem("Presidio scrubbing (proxy)", null, (_, _) => PresidioToggled())
+        { CheckOnClick = true, Checked = TrayConfig.PresidioEnabled && !string.IsNullOrWhiteSpace(TrayConfig.PresidioUrl) };
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Status…", null, (_, _) => ShowStatus());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Open vault folder", null, (_, _) => OpenVault());
         menu.Items.Add(_nerItem);
+        menu.Items.Add(_presidioItem);
         menu.Items.Add("Provider setup…", null, (_, _) => new ProviderForm(_port).Show());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Restart proxy", null, (_, _) => _ = Restart());
@@ -237,6 +241,25 @@ internal sealed class TrayApp : ApplicationContext
         TrayConfig.SetNer(on);
     }
 
+    private void PresidioToggled()
+    {
+        var on = _presidioItem.Checked;
+        if (on && string.IsNullOrWhiteSpace(TrayConfig.PresidioUrl))
+        {
+            _presidioItem.Checked = false;
+            MessageBox.Show(
+                "Presidio needs a local analyzer service first.\n\n" +
+                "Run the official container once:\n" +
+                "  docker run -d --name presidio --restart unless-stopped -p 3000:3000 mcr.microsoft.com/presidio-analyzer:latest\n" +
+                "then setx SANITIZE_PRESIDIO_URL \"http://localhost:3000\" and restart the tray.\n\n" +
+                "The presidio pass stays off until then — every other tier still works.",
+                "ClaimCheck Presidio", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        TrayConfig.SetPresidio(on);
+        if (on) ClaimCheck.Presidio.WarmUp(); // re-warm after enabling so the first request isn't cold
+    }
+
     private static bool NerModelCached()
     {
         try
@@ -361,6 +384,12 @@ internal sealed class StatusForm : Form
             lines.Add($"fail-closed {(fc ? "ON" : "OFF")}  ·  NER {i.NerMode}");
         else
             lines.Add($"NER         {i.NerMode}");
+        if (i.PresidioMode is { } pm)
+            lines.Add(i.PresidioFailures is { } pf && pf > 0
+                ? $"presidio    {pm}  ·  {pf} skip{(pf == 1 ? "" : "s")}" + (i.PresidioLastFailure is { } plf ? $" · last: {plf}" : "")
+                : $"presidio    {pm}");
+        else
+            lines.Add("presidio    off (set SANITIZE_PRESIDIO_URL)");
         lines.Add($"vault dir   {i.VaultSummary}");
         lines.Add("");
         lines.Add("MCP wiring:");
