@@ -49,7 +49,33 @@ public static class Presidio
         new(StringComparer.OrdinalIgnoreCase) { "DATE_TIME", "TIME" };
 
     private static readonly Regex PlaceholderRx = new(@"\[[A-Z][A-Z_0-9]*_\d+\]");
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(5) };
+    // 30s: a cold Presidio service can spend far more than 5s on its first inference
+    // (NLP model load) — a 5s client timeout turned that into a silent fail-soft skip
+    // and a raw leak on the first request after idle (2026-10-26 predator field report).
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
+
+    // Fire-and-forget warm-up at proxy start: load the analyzer's NLP models before the
+    // first user request so the cold-start window can't leak.
+    public static void WarmUp()
+    {
+        if (!Enabled) return;
+        _ = System.Threading.Tasks.Task.Run(async () =>
+        {
+            try
+            {
+                var endpoint = Url!.TrimEnd('/');
+                if (!endpoint.EndsWith("/analyze", StringComparison.OrdinalIgnoreCase)) endpoint += "/analyze";
+                using var req = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                { Content = new StringContent("{\"text\":\"warmup\",\"language\":\"en\",\"score_threshold\":1}", Encoding.UTF8, "application/json") };
+                using var resp = await Http.SendAsync(req);
+                Console.Error.WriteLine($"claimcheck presidio: warm-up {(int)resp.StatusCode}");
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine($"claimcheck presidio: warm-up skipped — {e.Message}");
+            }
+        });
+    }
 
     public static (string Text, List<Finding> Findings) Scrub(string text, VaultData vault)
     {

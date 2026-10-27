@@ -143,6 +143,7 @@ public static class Proxy
             nerProvider = Ner.Provider,
             presidio = Presidio.Enabled ? ("on -> " + Presidio.Url) : "off",
             presidioFailures = Presidio.ConsecutiveFailures,
+            presidioLastFailure = Presidio.LastFailure,
             startedUtc = StartedUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'"),
         }));
         app.Map("/{**path}", async (HttpContext ctx, string? path) =>
@@ -155,6 +156,7 @@ public static class Proxy
         });
 
         Console.Error.WriteLine($"sanitize proxy: http://127.0.0.1:{port} -> {_upstream} (scrub outbound, restore inbound; vault: {_vaultFile.FullName})");
+        Presidio.WarmUp();
         await app.StartAsync();
         return app;
     }
