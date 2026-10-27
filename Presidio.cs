@@ -152,6 +152,12 @@ public static class Presidio
         {
             if (h.End > acceptedStart) continue;
             var seg = text[h.Start..h.End];
+            // v0.8.3: an NER span that crosses a newline is garbage in structured
+            // payloads (numbered lists, code, tables) — it swallows whole neighboring
+            // lines AND their line labels (battery repro 2026-10-27: one PERSON span
+            // ate items 5-7 of a list, labels included). Within-line hits only;
+            // multiline spans are skipped fail-soft for the deterministic tiers.
+            if (seg.Contains('\n')) continue;
             if (PlaceholderRx.IsMatch(seg)) continue;
             var ph = Sanitizer.Placeholder(vault, h.Type, seg);
             var line = 1 + text[..h.Start].Count(c => c == '\n');

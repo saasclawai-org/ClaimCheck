@@ -40,10 +40,20 @@ public static class Gazetteer
         }
     }
 
+    /// <summary>Default OFF (v0.8.3): bigram matching over structured/code payloads traded
+    /// utility for corruption-class false positives — and a skipped-token adjacency bug let
+    /// fake bigrams span lines and eat line labels (battery repro 2026-10-27, items 5-7:
+    /// "[CARD_7] … 6. IBAN" matched as the name "Card Iban"). Opt in with
+    /// SANITIZE_GAZETTEER=1 for prose-heavy sources; presidio's NER covers free-text
+    /// names when enabled.</summary>
+    public static bool Enabled => string.Equals(
+        Environment.GetEnvironmentVariable("SANITIZE_GAZETTEER"), "1", StringComparison.Ordinal);
+
     /// <summary>Find "First Last" bigrams where both words are in the gazetteer.
     /// Returns the scrubbed text (names → PERSON placeholders) and findings.</summary>
     public static (string Text, List<Finding> Findings) Scrub(string text, VaultData vault)
     {
+        if (!Enabled) return (text, new List<Finding>());
         EnsureLoaded();
         if (_names is null || _names.Count == 0) return (text, new List<Finding>());
 
@@ -53,7 +63,11 @@ public static class Gazetteer
         {
             var (w1, s1, e1) = words[i];
             var (w2, s2, e2) = words[i + 1];
-            if (s2 < e1 || text[s2-1] != ' ') continue;
+            // v0.8.3 fix: the words must be TRUE neighbors — exactly one space between
+            // them. TokenizeWords skips digits/punctuation/brackets, so the old check
+            // (just "char before w2 is a space") let "[CARD_7] … 6. IBAN" become a fake
+            // "Card Iban" bigram whose span crossed lines and ate the line labels.
+            if (s2 != e1 + 1 || text[e1] != ' ') continue;
             if (!_names.Contains(w1) || !_names.Contains(w2)) continue;
             if (!char.IsUpper(w1[0]) || !char.IsUpper(w2[0])) continue;
             spans.Add((s1, e2, $"{w1} {w2}"));
