@@ -45,8 +45,18 @@ public static class Presidio
 
     // NER noise from the spike: DATE_TIME/TIME flagged benign prose ("May and June are
     // good months") at 0.85 — excluded unless the allowlist explicitly asks for them.
+    // v0.8.5: URL excluded — presidio's URL recognizer fragments code identifiers
+    // ("sendmail" → [URL_3]ndmail, "SMTP" → [URL_5]TP; dogfood 2026-10-27).
+    // ClaimCheck's own URL_CREDS row covers real cred-bearing URLs.
     private static readonly HashSet<string> DefaultExcluded =
-        new(StringComparer.OrdinalIgnoreCase) { "DATE_TIME", "TIME" };
+        new(StringComparer.OrdinalIgnoreCase) { "DATE_TIME", "TIME", "URL" };
+
+    /// <summary>v0.8.5: payloads above this size skip the presidio pass (fail-soft, regex
+    /// tiers always full) — NER over huge Cline contexts was the "very long time" latency
+    /// report. Tunable via SANITIZE_PRESIDIO_MAX_CHARS.</summary>
+    public static int MaxChars { get; } =
+        int.TryParse(Environment.GetEnvironmentVariable("SANITIZE_PRESIDIO_MAX_CHARS"), out var mc) && mc > 0
+            ? mc : 50_000;
 
     private static readonly Regex PlaceholderRx = new(@"\[[A-Z][A-Z_0-9]*_\d+\]");
     // 30s: a cold Presidio service can spend far more than 5s on its first inference
@@ -81,6 +91,15 @@ public static class Presidio
     {
         var findings = new List<Finding>();
         if (!Enabled || string.IsNullOrEmpty(text)) return (text, findings);
+        if (text.Length > MaxChars)
+        {
+            if (!_capSkipLogged)
+            {
+                _capSkipLogged = true;
+                Console.Error.WriteLine($"claimcheck presidio: skipped ({text.Length} chars > {MaxChars} cap) — regex tier only");
+            }
+            return (text, findings);
+        }
 
         var allow = EntityAllowlist();
         var payloadObj = new Dictionary<string, object>
@@ -167,6 +186,8 @@ public static class Presidio
         }
         return (text, findings);
     }
+
+    private static bool _capSkipLogged;
 
     private static void RecordFailure(string message)
     {

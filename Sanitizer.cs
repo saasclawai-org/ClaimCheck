@@ -91,7 +91,13 @@ public static class Sanitizer
         // span (the placeholder name carries the type); quoted values may contain spaces.
         // (2026-10-26 professional-audit finding: the old = -anchored pattern leaked the
         // JSON/YAML/quoted/prefixed variants.)
-        ("PASSWORD",   new Regex(@"(?i)(?:^|(?<=[^A-Za-z0-9]))[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*(""[^""\r\n]*""|'[^'\r\n]*'|[^\s,;""'&\}\[\]]+)"), null),
+        // v0.8.5: value-only masking — the label stays visible in the scrubbed text and
+        // the vault stores the bare credential, so the SAME value minted from ".env"
+        // (SMTP_PASS=x) and JSON ("Pass": "x") yields the SAME ticket (dogfood finding:
+        // cross-file ticket instability). Three branches: double-quoted / single-quoted /
+        // unquoted (unquoted requires 6+ chars — prose-noise guard; leak-direction
+        // trade-off accepted for tiny unquoted values).
+        ("PASSWORD",   new Regex(@"(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*"")[^""\r\n]*(?="")|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*')[^'\r\n]*(?=')|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*)[^\s,;""'&\}\[\]]{6,}"), null),
         // v0.8.4: credentials embedded in scheme://user:pass@host URLs (database URLs,
         // deploy hooks) — ticket only the creds segment so scheme/host stay readable
         // for debugging.
@@ -276,6 +282,43 @@ public static class Sanitizer
         }
     }
 
+    /// <summary>v0.8.5: known-value re-ticketing. Values restored into files/outputs re-enter
+    /// context as bare strings with no label context — the pattern tiers can't recognize them
+    /// (dogfood 2026-10-27: a restored SMTP password re-read from disk reached the model raw).
+    /// This pass exact-matches every vault value (>= 6 chars, longest first) and re-tickets it,
+    /// so once a secret has been restored anywhere it can never reach the model again in any
+    /// form. Idempotent: already-ticketed text contains no raw values, so re-running is a no-op.
+    /// Values &lt; 6 chars are skipped — short-string replacement would corrupt prose.</summary>
+    public static (string Text, int Count) ScrubKnownValues(string text, VaultData vault)
+    {
+        List<KeyValuePair<string, string>> entries;
+        lock (VaultLock)
+        {
+            // v0.8.5: pure-value entries only. Legacy label-inclusive / whole-line vault
+            // values ("PASS=secret", '"Pass": "secret"', multiline spans) match as
+            // substrings inside fresh labeled lines and would EAT the labels/lines
+            // (dogfood 2026-10-27: the .env SMTP section collapsed into one old ticket).
+            entries = vault.Map
+                .Where(kv => kv.Value.Length >= 6 && !kv.Value.Contains('['))
+                .Where(kv => !kv.Value.Contains('=') && !kv.Value.Contains(':') &&
+                             !kv.Value.Contains('"') && !kv.Value.Contains('\n'))
+                .OrderByDescending(kv => kv.Value.Length)
+                .ToList();
+        }
+        var count = 0;
+        foreach (var (ph, val) in entries)
+        {
+            // Boundary-anchored: legacy label-inclusive vault values (e.g. "PASS=secret")
+            // must not match as substrings inside NEW labeled lines ("SMTP_PASS=secret") —
+            // that corrupted the line and fragmented the ticket (dogfood 2026-10-27).
+            var rx = new Regex("(?<![A-Za-z0-9_])" + Regex.Escape(val));
+            if (!rx.IsMatch(text)) continue;
+            text = rx.Replace(text, "[" + ph + "]");
+            count++;
+        }
+        return (text, count);
+    }
+
     public static (List<string> Lines, List<Finding> Findings) SanitizeLines(
         string[] lines, List<(string Type, Regex Rx, Func<string, bool>?)> patterns, VaultData vault)
     {
@@ -296,6 +339,13 @@ public static class Sanitizer
                 });
             }
             result.Add(line);
+        }
+        var (kvText, kvCount) = ScrubKnownValues(string.Join('\n', result), vault);
+        if (kvCount > 0)
+        {
+            var joined = kvText.Split('\n');
+            result.Clear();
+            result.AddRange(joined);
         }
         return (result, findings);
     }

@@ -293,6 +293,8 @@ public static class Proxy
             var (nerText, nerFindings) = Ner.Scrub(scrubbed, vault);
             if (nerFindings.Count > 0) { scrubbed = nerText; n += nerFindings.Count; }
         }
+        var (kvText, kvCount) = Sanitizer.ScrubKnownValues(scrubbed, vault);
+        if (kvCount > 0) { scrubbed = kvText; n += kvCount; }
         return (scrubbed, encoded + pemCount + n);
     }
 
