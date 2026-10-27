@@ -10,6 +10,8 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>ClaimCheckTray</AssemblyName>
     <Version>0.8.2</Version>
+    <!-- NER natives must ride inside the single-file exe (see ClaimCheck.csproj). -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <ApplicationIcon>../ClaimCheck.ico</ApplicationIcon>
   </PropertyGroup>
 
