@@ -347,6 +347,12 @@ without it (`NETSDK1129`).
 Cross-compiles from Linux/macOS to Windows (and vice versa) — the publish output is a single
 self-contained executable.
 
+## Documentation
+
+- [docs/PROXY.md](docs/PROXY.md) — proxy deployment: provider surfaces, multi-lane fleets, coverage rules, update ordering
+- [docs/PLACEHOLDERS.md](docs/PLACEHOLDERS.md) — placeholder ticket semantics: vault scoping, stability guarantees, why the numbering is opaque
+- [docs/COMPARISON.md](docs/COMPARISON.md) — ClaimCheck vs Presidio: the four-problems framing and the optional Presidio detection backend
+
 ## Roadmap
 
 - [x] Encoded-output scrubbing — base64/hex dumps decoded and masked before matching
