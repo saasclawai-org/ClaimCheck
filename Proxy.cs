@@ -94,6 +94,9 @@ public static class Proxy
         if (!_upstream.EndsWith('/')) _upstream += '/';
         _upstreamPrefix = UpstreamPathPrefix(_upstream);
         var port = int.TryParse(GetArg(args, "--port"), out var p) ? p : 8766;
+        var host = GetArg(args, "--host") ?? "127.0.0.1";
+        if (host is not ("127.0.0.1" or "localhost" or "::1" or "[::1]"))
+            Console.Error.WriteLine($"sanitize proxy: WARNING — binding {host}:{port} exposes an UNAUTHENTICATED proxy to the network. LAN or VPN only; never the public internet.");
         Port = port;
         StartedUtc = DateTime.UtcNow;
 
@@ -121,7 +124,7 @@ public static class Proxy
 
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders(); // stdio/stream discipline: nothing writes to stdout
-        builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
+        builder.WebHost.UseUrls($"http://{host}:{port}");
         var app = builder.Build();
 
         app.Map("/health", () => Results.Text("ok"));
@@ -155,7 +158,7 @@ public static class Proxy
                 await PassThrough(ctx, path);
         });
 
-        Console.Error.WriteLine($"sanitize proxy: http://127.0.0.1:{port} -> {_upstream} (scrub outbound, restore inbound; vault: {_vaultFile.FullName})");
+        Console.Error.WriteLine($"sanitize proxy: http://{host}:{port} -> {_upstream} (scrub outbound, restore inbound; vault: {_vaultFile.FullName})");
         Presidio.WarmUp();
         await app.StartAsync();
         return app;

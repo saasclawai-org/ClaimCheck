@@ -23,7 +23,7 @@ MCP server, on-wire proxy.
 
 ```bash
 curl -L -o claimcheck.tar.gz \
-  https://github.com/saasclawai-org/ClaimCheck/releases/download/v0.8.5/ClaimCheck-v0.8.5-linux-arm64.tar.gz
+  https://github.com/saasclawai-org/ClaimCheck/releases/download/v0.8.6/ClaimCheck-v0.8.6-linux-arm64.tar.gz
 tar xzf claimcheck.tar.gz
 chmod +x ClaimCheck
 sudo mv ClaimCheck /usr/local/bin/
@@ -68,7 +68,7 @@ WorkingDirectory=/home/pi
 Environment=SANITIZE_VAULT_PASSWORD=change-me-long-random
 # optional — on-device analyzer (see Presidio section below):
 Environment=SANITIZE_PRESIDIO_URL=http://127.0.0.1:5001
-ExecStart=/usr/local/bin/ClaimCheck --proxy --upstream http://YOUR-MODEL-BOX:8000/v1 --port 8766
+ExecStart=/usr/local/bin/ClaimCheck --proxy --host 0.0.0.0 --upstream http://YOUR-MODEL-BOX:8000/v1 --port 8766
 Restart=on-failure
 RestartSec=5
 
@@ -81,8 +81,11 @@ sudo systemctl daemon-reload && sudo systemctl enable --now claimcheck-proxy
 ClaimCheck status
 ```
 
-**The proxy binds `127.0.0.1` only** — deliberate, it has no authentication. To
-serve other machines on the LAN, add a forwarder:
+**The proxy binds `127.0.0.1` unless told otherwise** — deliberate, it has no
+authentication. v0.8.6+ takes `--host 0.0.0.0` to serve the LAN directly (the
+unit above already passes it) and prints a loud warning whenever it binds
+non-loopback. On ≤0.8.5, or if you'd rather keep the proxy loopback-only, add a
+forwarder:
 
 ```bash
 sudo apt install -y socat
@@ -102,7 +105,8 @@ EOF
 sudo systemctl daemon-reload && sudo systemctl enable --now claimcheck-forward
 ```
 
-Then point clients at `http://PI-IP:8767/v1`. **LAN only** — never port-forward
+Then point clients at `http://PI-IP:8767/v1` (or `http://PI-IP:8766/v1` when
+using `--host 0.0.0.0`). **LAN only** — never port-forward
 8766/8767 to the internet. Want zero LAN exposure instead? An SSH tunnel from
 the client machine (`ssh -N -L 8766:127.0.0.1:8766 pi@PI-IP`, then Base URL
 `http://127.0.0.1:8766/v1`) keeps the proxy loopback-only.
