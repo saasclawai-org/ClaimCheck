@@ -225,7 +225,8 @@ Presidio findings are tier-separated — probabilistic, labeled by entity type, 
 through the same vault with stable placeholders and restore — and the pass is skipped
 fail-soft when the service is down. Tune with `SANITIZE_PRESIDIO_SCORE` (default 0.4)
 and `SANITIZE_PRESIDIO_ENTITIES` (comma-separated allowlist; `DATE_TIME`/`TIME` are
-excluded by default — they flag benign prose).
+excluded by default — they flag benign prose). **Container setup, tunables, and the
+tier semantics: [docs/PRESIDIO.md](docs/PRESIDIO.md).**
 
 **Honest limits:** the proxy covers the model-provider hop only — the chat surface
 (Telegram, Discord, ...) still sees whatever was pasted before the proxy could act. And
@@ -362,6 +363,7 @@ self-contained executable.
 - [docs/PROXY.md](docs/PROXY.md) — proxy deployment: provider surfaces, multi-lane fleets, coverage rules, update ordering
 - [docs/PLACEHOLDERS.md](docs/PLACEHOLDERS.md) — placeholder ticket semantics: vault scoping, stability guarantees, why the numbering is opaque
 - [docs/COMPARISON.md](docs/COMPARISON.md) — ClaimCheck vs Presidio: the four-problems framing and the optional Presidio detection backend
+- [docs/PRESIDIO.md](docs/PRESIDIO.md) — optional Presidio sidecar: container quick start, tunables, tier semantics, default exclusions
 
 ## Roadmap
 
@@ -369,6 +371,7 @@ self-contained executable.
 - [x] Fail-closed proxy posture (`SANITIZE_FAIL_CLOSED=0` to disable)
 - [ ] Label-anchored heuristics (names after `Contact:`, `Owner:` …)
 - [x] Local NER tier for free-text names/addresses (`SANITIZE_NER=1`, local ONNX model)
+- [x] Optional Presidio detection sidecar (`SANITIZE_PRESIDIO_URL` — crypto wallets, NER, international formats)
 - [ ] Hashed-identifier columns (peppered HMAC) for database lookups
 - [ ] Pluggable recognizer packs
 - [x] Vault encryption at rest — DPAPI on Windows, AES-GCM password mode everywhere (`SANITIZE_VAULT_PASSWORD`)

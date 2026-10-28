@@ -101,7 +101,7 @@ placeholders and restore. Tier-separated (probabilistic — labeled by entity ty
 part of the validator-backed guarantee tier), fail-soft when the service is down. Tune
 with `SANITIZE_PRESIDIO_SCORE` (default 0.4) and `SANITIZE_PRESIDIO_ENTITIES`
 (comma-separated allowlist; `DATE_TIME`/`TIME` are excluded by default — they flag benign
-prose).
+prose). Container quick start and full tunables: `docs/PRESIDIO.md`.
 
 ## Restoring original values (local only)
 
