@@ -266,7 +266,8 @@ Extend it with `.sanitize-patterns.json` in your project root — same contract,
 
 Placeholders are stable per project: `[FEIN_1]` always maps back to the same value, so the
 model can reason consistently across an entire session. The vault lives on your machine
-(`~/.sanitize-mcp/vaults/`) and is never transmitted.
+(`~/.sanitize-mcp/vaults/`) and is never transmitted — encrypted at rest on Windows
+(DPAPI), or anywhere via `SANITIZE_VAULT_PASSWORD` (AES-GCM).
 
 Restore locally whenever you need real values back:
 
@@ -326,9 +327,11 @@ ClaimCheck is a best-effort sanitization tool, provided **AS IS** under the MIT 
   PCI- or otherwise compliant, and it is not a certified control. Your data, your
   obligations, your verification.
 - **The NER tier is statistical** and English-trained — it will miss and mangle things.
-- **The vault is stored unencrypted** on your machine (until the encryption tier ships).
-  Anyone with access to your user profile can reverse the placeholders. Protect your
-  machine accordingly.
+- **Vault encryption depends on platform and mode.** Windows vaults are DPAPI-encrypted
+  at rest by default (v0.6.0+). Any OS: set `SANITIZE_VAULT_PASSWORD` for portable
+  AES-GCM encryption (forget the password = mappings unrecoverable). Linux/macOS
+  without a password store plaintext JSON (0600 perms) — anyone with your user profile
+  can reverse the placeholders. Protect your machine accordingly.
 - **Defense in depth:** use ClaimCheck as one layer, not your only layer.
 
 ## Build & test
