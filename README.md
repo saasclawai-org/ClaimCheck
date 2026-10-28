@@ -367,6 +367,7 @@ self-contained executable.
 - [docs/PLACEHOLDERS.md](docs/PLACEHOLDERS.md) — placeholder ticket semantics: vault scoping, stability guarantees, why the numbering is opaque
 - [docs/COMPARISON.md](docs/COMPARISON.md) — ClaimCheck vs Presidio: the four-problems framing and the optional Presidio detection backend
 - [docs/PRESIDIO.md](docs/PRESIDIO.md) — optional Presidio sidecar: container quick start, tunables, tier semantics, default exclusions
+- [docs/RASPBERRY-PI.md](docs/RASPBERRY-PI.md) — ARM64 single-board computers: install, the LAN scrub-proxy appliance, what's fast/slow on a Pi
 
 ## Roadmap
 
