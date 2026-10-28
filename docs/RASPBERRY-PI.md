@@ -87,7 +87,35 @@ Point clients at `http://PI-IP:8766/v1`.
 | MCP server (`read_sanitized` / `scan_file` / `sanitize_text`) | great |
 | Proxy core scrub | great — adds milliseconds |
 | NER tier (opt-in, `SANITIZE_NER=1`) | works, but BERT on Pi CPU is slow — fine for agent-initiated reads, rough as an always-on proxy layer; the 50K-char cap bounds worst cases |
-| Presidio sidecar | the analyzer container is amd64-only — run it on another box and set `SANITIZE_PRESIDIO_URL`; the proxy is fail-soft without it |
+| Presidio sidecar | **runs on-device** via the community multi-arch image (below) — verified end-to-end; or point `SANITIZE_PRESIDIO_URL` at a LAN box; fail-soft without it |
+
+## Presidio on-device (community multi-arch image)
+
+The official `mcr.microsoft.com/presidio-analyzer` image is amd64-only. The
+community `ghcr.io/data-privacy-stack` images are multi-arch and run on the Pi:
+
+```bash
+docker run -d --name presidio-analyzer -p 127.0.0.1:5001:3000 \
+  ghcr.io/data-privacy-stack/presidio-analyzer:latest
+export SANITIZE_PRESIDIO_URL=http://127.0.0.1:5001
+```
+
+Silicon-verified 2026-10-28: PERSON / ORG detection flows end-to-end through the
+analyzer, on-device, from a cold start. Two caveats from that same test:
+
+- **Narrower recognizer set than the official image** — a plain CRYPTO wallet
+  address passed through unmasked. Probe what your image actually recognizes:
+
+  ```bash
+  curl -s http://127.0.0.1:5001/analyze -H 'Content-Type: application/json' \
+    -d '{"text":"wallet 0x71C7656EC7ab88b098defB751B7401B5f6d8976F","language":"en","score_threshold":0}'
+  ```
+
+  Or cover the gap deterministically with a `.sanitize-patterns.json` pattern —
+  that runs in ClaimCheck's built-in tier, no container needed.
+- **Non-stock entity names** — this build emits `ORG_ENTITY` where stock Presidio
+  emits `ORGANIZATION`. Harmless: ClaimCheck tickets whatever arrives, and
+  `[ORG_ENTITY_1]` restores normally.
 
 ## Troubleshooting
 

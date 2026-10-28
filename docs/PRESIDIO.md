@@ -51,6 +51,14 @@ That's the whole integration. The proxy fires a fire-and-forget **warm-up**
 request at startup so the container's model load happens before your first
 real request, not during it.
 
+> **ARM boards (Raspberry Pi, etc.):** the MCR image above is amd64-only. The
+> community `ghcr.io/data-privacy-stack/presidio-analyzer:latest` image is
+> multi-arch and runs on-device (silicon-verified 2026-10-28 on a Raspberry Pi):
+> `-p 127.0.0.1:5001:3000` + `SANITIZE_PRESIDIO_URL=http://127.0.0.1:5001`.
+> Expect a narrower default recognizer set (CRYPTO wallets weren't detected in
+> that test) and non-stock entity names (`ORG_ENTITY`); probe with a direct
+> `/analyze` call at `score_threshold: 0` to see what your image recognizes.
+
 ## Tunables
 
 | Env var | Default | Meaning |
