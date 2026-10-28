@@ -111,6 +111,36 @@ the client machine (`ssh -N -L 8766:127.0.0.1:8766 pi@PI-IP`, then Base URL
 directory so the proxy shares the same vault and `.sanitize-patterns.json` as
 your CLI runs.
 
+### Cloud providers as upstream
+
+`YOUR-MODEL-BOX` doesn't have to be a box on the LAN — a cloud provider works
+the same way. The rule: `--upstream` is the provider's API base, and clients
+use the proxy plus the same path:
+
+| Provider | `--upstream` | Client Base URL |
+|---|---|---|
+| Z.ai (GLM) | `https://api.z.ai/api/coding/paas/v4` | `http://raspberrypi.local:8767/api/coding/paas/v4` |
+| OpenAI | `https://api.openai.com/v1` | `http://raspberrypi.local:8767/v1` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `http://raspberrypi.local:8767/v1` |
+
+(`raspberrypi.local` = the default hostname via mDNS — resolves from Windows,
+macOS and most Linux desktops. `docs/PROXY.md` has the full provider-by-provider
+list, including Claude's compat layer and local vLLM.)
+
+For Cline this is just the Base URL swap: the API key stays in Cline and passes
+through untouched — the Pi holds no credentials. Only chat-completions requests
+are scrubbed, which is exactly what Cline sends on any OpenAI-compatible
+provider.
+
+**One lane = one provider.** The proxy mirrors a single upstream; to scrub a
+second cloud at the same time, run another instance on a different port with
+its own `--vault` (same unit file, three changed lines: port, upstream, vault
+path).
+
+That's the flagship topology: code and context scrubbed **on the LAN**, tickets
+crossing the internet, real values restored before the editor ever sees the
+response.
+
 ## What's fast and what's slow on a Pi
 
 | Feature | On a Pi |
