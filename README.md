@@ -1,19 +1,23 @@
 # ClaimCheck
 
-**Check your PII at the door. Your LLM gets claim tickets.**
+**Check your PII at the door. Your LLM gets claim tickets — only your machine knows the names.**
 
 🌐 **[claimcheck.saasclaw.ai](https://claimcheck.saasclaw.ai)** — project site · [ClawHub listing](https://clawhub.ai/normandmickey/skills/claimcheck) · [Releases](https://github.com/saasclawai-org/ClaimCheck/releases)
 
-ClaimCheck is a local-first pseudonymization gate for LLM workflows. One self-contained
-binary, two modes:
+Every AI coding tool reads your real files — FEINs, SSNs, live credentials — and ships them
+straight into a cloud model's context. Once those bytes leave your machine, they're gone.
+ClaimCheck stops it on your side of the wire: every identifier becomes a stable claim ticket —
+`[FEIN_1]`, `[PERSON_2]` — the model reasons over tickets, and a vault on your disk restores
+the real values on the way back. One self-contained binary, three ways to run it:
 
 - **MCP server** — for Cline, Cursor, or any MCP client: the model reads files *through it*
   and receives scrubbed content with stable placeholders
 - **LLM proxy** — point any OpenAI-compatible client at it: every request is scrubbed on the
   wire, every response restored before your editor sees it
+- **CLI** — one-line scrub/restore from any script or agent
 
-The model works on `[FEIN_1]`, `[SSN_2]`, `[CLIENT_3]`-style claim tickets. You reclaim the
-real values on the way out. The provider processes structure — never plaintext identity.
+Reversible where redaction isn't. Local where cloud DLP isn't. Zero cooperation from the AI
+tool — the provider processes structure, never plaintext identity.
 
 ## Why
 
