@@ -63,7 +63,11 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+User=pi
+WorkingDirectory=/home/pi
 Environment=SANITIZE_VAULT_PASSWORD=change-me-long-random
+# optional — on-device analyzer (see Presidio section below):
+Environment=SANITIZE_PRESIDIO_URL=http://127.0.0.1:5001
 ExecStart=/usr/local/bin/ClaimCheck --proxy --upstream http://YOUR-MODEL-BOX:8000/v1 --port 8766
 Restart=on-failure
 RestartSec=5
@@ -77,7 +81,35 @@ sudo systemctl daemon-reload && sudo systemctl enable --now claimcheck-proxy
 ClaimCheck status
 ```
 
-Point clients at `http://PI-IP:8766/v1`.
+**The proxy binds `127.0.0.1` only** — deliberate, it has no authentication. To
+serve other machines on the LAN, add a forwarder:
+
+```bash
+sudo apt install -y socat
+sudo tee /etc/systemd/system/claimcheck-forward.service >/dev/null <<'EOF'
+[Unit]
+Description=ClaimCheck LAN forwarder
+After=claimcheck-proxy.service
+Requires=claimcheck-proxy.service
+
+[Service]
+ExecStart=/usr/bin/socat TCP-LISTEN:8767,fork,reuseaddr TCP:127.0.0.1:8766
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload && sudo systemctl enable --now claimcheck-forward
+```
+
+Then point clients at `http://PI-IP:8767/v1`. **LAN only** — never port-forward
+8766/8767 to the internet. Want zero LAN exposure instead? An SSH tunnel from
+the client machine (`ssh -N -L 8766:127.0.0.1:8766 pi@PI-IP`, then Base URL
+`http://127.0.0.1:8766/v1`) keeps the proxy loopback-only.
+
+`User` + `WorkingDirectory` matter: they anchor the service to your home
+directory so the proxy shares the same vault and `.sanitize-patterns.json` as
+your CLI runs.
 
 ## What's fast and what's slow on a Pi
 
