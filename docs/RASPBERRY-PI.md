@@ -4,10 +4,11 @@ ClaimCheck ships a **linux-arm64** build — one self-contained binary, no .NET
 install, no account, no network calls. All three modes work on a Pi: CLI,
 MCP server, on-wire proxy.
 
-> **Status: community-tested welcome.** The arm64 build is cross-compiled from
-> the same sources as the Windows release, with ARM64 natives bundled (including
-> ONNX Runtime). If you get it running on real silicon — or it breaks — please
-> open an Issue. You'll be the first.
+> **Status: silicon-verified.** First real-hardware test 2026-10-28 — Raspberry Pi,
+> 64-bit OS: startup, gazetteer load (250,551 names), FEIN + email scrub, vault
+> mint — all green. The arm64 build is cross-compiled from the same sources as
+> the Windows release, with ARM64 natives bundled (including ONNX Runtime).
+> Broke it on your board? Open an Issue.
 
 ## Requirements
 
