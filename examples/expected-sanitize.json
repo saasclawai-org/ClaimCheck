@@ -1,0 +1,35 @@
+{
+  "path": "C:\\Users\\you\\Desktop\\secrets-test.txt",
+  "summary": {
+    "total": 4,
+    "by_type": {
+      "PASSWORD": 1,
+      "AWS_KEY": 1,
+      "FEIN": 1,
+      "EMAIL": 1
+    }
+  },
+  "findings": [
+    {
+      "Line": 1,
+      "Type": "PASSWORD",
+      "Placeholder": "PASSWORD_1"
+    },
+    {
+      "Line": 2,
+      "Type": "AWS_KEY",
+      "Placeholder": "AWS_KEY_1"
+    },
+    {
+      "Line": 3,
+      "Type": "FEIN",
+      "Placeholder": "FEIN_1"
+    },
+    {
+      "Line": 4,
+      "Type": "EMAIL",
+      "Placeholder": "EMAIL_1"
+    }
+  ],
+  "content": "DB_PASSWORD = [PASSWORD_1]\nAWS_KEY = [AWS_KEY_1]\nFEIN = [FEIN_1]\ncontact = [EMAIL_1]\r\n"
+}

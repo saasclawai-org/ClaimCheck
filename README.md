@@ -114,6 +114,10 @@ The JSON parses trivially (Python `json.loads`, Node `JSON.parse`), so agents ca
 through `jq`/`python` without speaking MCP. `.clinerules` and `llms-install.md` consumers
 use the same verbs.
 
+New here? [`examples/`](examples/) has a complete worked example — a four-secret sample
+file (all values fake), the verified `sanitize-file` output, and a `run-example.ps1`
+script that does the full scan → ticket → restore round-trip with a PASS/FAIL check.
+
 ## OpenClaw integration
 
 [OpenClaw](https://docs.openclaw.ai) runs ClaimCheck as a first-class local MCP server
