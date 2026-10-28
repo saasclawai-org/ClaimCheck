@@ -111,8 +111,14 @@ analyzer, on-device, from a cold start. Two caveats from that same test:
     -d '{"text":"wallet 0x71C7656EC7ab88b098defB751B7401B5f6d8976F","language":"en","score_threshold":0}'
   ```
 
-  Or cover the gap deterministically with a `.sanitize-patterns.json` pattern —
-  that runs in ClaimCheck's built-in tier, no container needed.
+  Or cover the gap deterministically with a `.sanitize-patterns.json` pattern in
+  the project root — built-in tier, no container needed:
+
+  ```json
+  [
+    { "name": "CRYPTO_WALLET", "regex": "\\b0x[a-fA-F0-9]{40}\\b" }
+  ]
+  ```
 - **Non-stock entity names** — this build emits `ORG_ENTITY` where stock Presidio
   emits `ORGANIZATION`. Harmless: ClaimCheck tickets whatever arrives, and
   `[ORG_ENTITY_1]` restores normally.

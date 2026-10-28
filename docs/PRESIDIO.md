@@ -58,6 +58,14 @@ real request, not during it.
 > Expect a narrower default recognizer set (CRYPTO wallets weren't detected in
 > that test) and non-stock entity names (`ORG_ENTITY`); probe with a direct
 > `/analyze` call at `score_threshold: 0` to see what your image recognizes.
+> Cover the gap deterministically with a `.sanitize-patterns.json` pattern in
+> the project root — built-in tier, no container needed:
+>
+> ```json
+> [
+>   { "name": "CRYPTO_WALLET", "regex": "\\b0x[a-fA-F0-9]{40}\\b" }
+> ]
+> ```
 
 ## Tunables
 
