@@ -3,13 +3,13 @@
 # Stops the proxy service (if running), downloads the new ARM64 build, installs it, restarts.
 #
 # Usage: sudo claimcheck-upgrade.sh [version]
-#   e.g. sudo claimcheck-upgrade.sh 0.8.7
+#   e.g. sudo claimcheck-upgrade.sh 0.8.8
 #
 # Safe to re-run any time a new release ships. Skips service handling if the
 # unit isn't installed yet (fresh appliance: run the runbook's Step 5 after).
 set -euo pipefail
 
-VER="${1:-0.8.7}"
+VER="${1:-0.8.8}"
 UNIT=claimcheck-proxy.service
 URL="https://github.com/saasclawai-org/ClaimCheck/releases/download/v${VER}/ClaimCheck-v${VER}-linux-arm64.tar.gz"
 
