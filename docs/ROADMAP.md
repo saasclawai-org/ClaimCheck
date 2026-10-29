@@ -35,7 +35,8 @@ Reference: `docs/competitive-analysis-2026-10-24.md` (Sunglasses, Semgrep, vulnh
 - [ ] Ops setup: dedicated service user, vault perms `600`, systemd template unit
       (one proxy instance per model lane, each with its own `--vault`)
 - [ ] Cloudflare route + Access policy for the fleet proxy
-- [ ] Fleet deployment guide (`docs/fleet-deployment.md`)
+- [x] Fleet deployment guide (`docs/fleet-deployment.md`) — vault scoping, shared-lane vs
+      lane-per-tenant, restore rights, lane verification (wire proof + /status fingerprint)
 - [ ] Pi + Windows resync to latest (Pi: git pull + rebuild + proxy restart)
 
 ## Phase 2 — Security tiers (free core — the differentiators)

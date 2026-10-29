@@ -114,6 +114,36 @@ Without `SANITIZE_VAULT_PASSWORD` the vault is **plaintext JSON on Linux/macOS**
 (Windows uses DPAPI automatically). On a server, set it — then re-mint: delete
 the existing vault file once and let the next request recreate it encrypted.
 
+## Vaults, tickets, and multi-tenancy
+
+Minting is deterministic within a vault: **the same PII string always gets the
+same ticket**, stable across requests, restarts, and sessions. The mint is an
+idempotent lookup — a value seen again never mints a second ticket — and vault
+writes are atomic + locked, so parallel requests can't duplicate or tear
+entries. Two properties follow directly:
+
+- Cross-referencing works: `[FEIN_1]` in four places is the same real value in
+  all four, and the model can reason about that consistency.
+- Tickets are per **exact string**: `123-45-6789` and `123456789`, or `John
+  Smith` vs `john smith`, are distinct strings and get distinct tickets.
+
+What a vault spans is a deployment decision:
+
+| Shape | Vault scope | Same string across users? | Restore rights |
+|---|---|---|---|
+| CLI | per project root (`~/.sanitize-mcp/vaults/<hash>.json`) | n/a (one user) | local only |
+| One lane per team/project (recommended) | per proxy instance (`--vault`) | no — unrelated ticket spaces | stay within the tenant |
+| Shared lane (one vault, many users) | per proxy instance | yes — identical ticket for everyone | **everyone who can query the lane** |
+
+The shared-lane shape is fine for a trusted team that wants cross-member
+consistency, but know its trade-offs: restore rights are as wide as lane
+access (any ticket minted on the lane restores for any caller), and ticket
+counters are shared too — a model seeing `[SSN_7]` can infer the lane has
+minted ≥7 SSNs. Per-user attribution and RBAC over restore rights are the
+Pro-tier boundary (see [ROADMAP.md](ROADMAP.md#phase-3--pro-tier-revenue));
+until then, **isolation is a deployment decision: one lane per tenant, each
+with its own `--vault`.**
+
 ## Optional: Presidio detection backend
 
 `SANITIZE_PRESIDIO_URL` points a lane at a live [Presidio analyzer](https://microsoft.github.io/presidio/)

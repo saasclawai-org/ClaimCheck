@@ -306,10 +306,12 @@ Extend it with `.sanitize-patterns.json` in your project root — same contract,
 
 ## Tickets & the vault
 
-Placeholders are stable per project: `[FEIN_1]` always maps back to the same value, so the
-model can reason consistently across an entire session. The vault lives on your machine
-(`~/.sanitize-mcp/vaults/`) and is never transmitted — encrypted at rest on Windows
-(DPAPI), or anywhere via `SANITIZE_VAULT_PASSWORD` (AES-GCM).
+Placeholders are stable per **vault**: `[FEIN_1]` always maps back to the same value, so the
+model can reason consistently across an entire session. The vault lives on your machine and
+is never transmitted — encrypted at rest on Windows (DPAPI), or anywhere via
+`SANITIZE_VAULT_PASSWORD` (AES-GCM). CLI use scopes a vault per project root; each proxy
+lane carries its own. Multi-project and multi-user shapes (shared lane vs lane-per-tenant)
+are covered in the [fleet deployment guide](docs/fleet-deployment.md).
 
 Restore locally whenever you need real values back:
 
