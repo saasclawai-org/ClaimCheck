@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# claimcheck-upgrade.sh — one-command ClaimCheck upgrade for the Raspberry Pi appliance.
-# Stops the proxy service (if running), downloads the new ARM64 build, installs it, restarts.
+# claimcheck-upgrade.sh — one-command ClaimCheck upgrade for Linux (x64 + ARM64/Pi).
+# Detects the arch, stops the proxy service (if running), downloads the matching build,
+# installs it, restarts.
 #
 # Usage: sudo claimcheck-upgrade.sh [version]
 #   e.g. sudo claimcheck-upgrade.sh 0.8.8
@@ -11,7 +12,20 @@ set -euo pipefail
 
 VER="${1:-0.8.8}"
 UNIT=claimcheck-proxy.service
-URL="https://github.com/saasclawai-org/ClaimCheck/releases/download/v${VER}/ClaimCheck-v${VER}-linux-arm64.tar.gz"
+
+case "$(uname -m)" in
+  x86_64)        ARCH=linux-x64 ;;
+  aarch64|arm64) ARCH=linux-arm64 ;;
+  *) echo "error: unsupported arch '$(uname -m)' (need x86_64 or aarch64)" >&2; exit 1 ;;
+esac
+
+if [ "$VER" = "latest" ]; then
+  VER="$(curl -fsSL https://api.github.com/repos/saasclawai-org/ClaimCheck/releases/latest \
+    | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4 | sed 's/^v//')"
+  [ -n "$VER" ] || { echo "error: could not determine latest release" >&2; exit 1; }
+fi
+
+URL="https://github.com/saasclawai-org/ClaimCheck/releases/download/v${VER}/ClaimCheck-v${VER}-${ARCH}.tar.gz"
 
 WAS=0
 if systemctl is-active --quiet "$UNIT" 2>/dev/null; then
@@ -20,7 +34,7 @@ if systemctl is-active --quiet "$UNIT" 2>/dev/null; then
   systemctl stop "$UNIT"
 fi
 
-echo "==> downloading ClaimCheck v${VER} (linux-arm64) ..."
+echo "==> downloading ClaimCheck v${VER} (${ARCH}) ..."
 curl -L --fail -o /tmp/cc-upgrade.tar.gz "$URL"
 rm -rf /tmp/cc-upgrade && mkdir -p /tmp/cc-upgrade
 tar xzf /tmp/cc-upgrade.tar.gz -C /tmp/cc-upgrade

@@ -32,8 +32,34 @@ sudo mv ClaimCheck /usr/local/bin/
 ClaimCheck sanitize-text "FEIN 12-3456789, contact jane@example.com"
 ```
 
-Newer releases: same command, bump the version in the URL (asset names carry
-the version).
+## Upgrading
+
+**Appliance install** (binary in `/usr/local/bin`, `claimcheck-proxy.service` managed by
+systemd) — one-time: fetch the updater script, then one command per release, forever:
+
+```bash
+sudo curl -L -o /usr/local/bin/claimcheck-upgrade \
+  https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/claimcheck-upgrade.sh
+sudo chmod +x /usr/local/bin/claimcheck-upgrade
+
+sudo claimcheck-upgrade           # release the script was shipped for
+sudo claimcheck-upgrade latest    # or resolve the newest release tag
+sudo claimcheck-upgrade 0.8.9     # or pin an explicit version
+```
+
+The script detects your arch (the same script works on x64 Linux servers), stops the
+proxy around the swap, installs, restarts the service, and prints the new version as
+its final check.
+
+**Per-user install** (via `tools/install.sh`): update = re-run the same one-liner — it
+always fetches the latest release and backs up the previous binary to `ClaimCheck.bak`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.sh | bash
+```
+
+Verify either way: `ClaimCheck version` (e.g. `ClaimCheck 0.8.8`), plus
+`ClaimCheck status` if you run the proxy.
 
 ## Vault encryption on the Pi
 

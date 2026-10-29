@@ -1,5 +1,6 @@
-ClaimCheck v0.8.5 — local PII pseudonymization for Windows
-===========================================================
+ClaimCheck — local PII pseudonymization for Windows
+===================================================
+(current at time of your download — see the release page for the exact version)
 
 WHAT IT IS
   Replaces sensitive values (FEIN, SSN, names, credentials, keys...) with

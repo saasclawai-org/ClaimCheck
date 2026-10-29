@@ -52,6 +52,44 @@ document editing come out identical to running on raw data.
 
 *Rendered view of the two services and how Cline and OpenClaw connect — interactive HTML version in [`docs/architecture.html`](docs/architecture.html).*
 
+## Install & upgrade
+
+**Windows** (PowerShell — install or update in one shot; auto-wires the Cline MCP
+config, VS Code closed while it runs):
+
+```powershell
+irm https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.ps1 | iex
+```
+
+Re-running the same command updates in place (backs up the old exe, rewires the MCP
+config). The optional tray proxy checks for updates every 4 hours — one click installs.
+
+**Linux** (x64 + ARM64 — per-user, no sudo, arch auto-detected):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.sh | bash
+```
+
+Installs to `~/.local/bin` (add it to PATH if prompted) and backs up the previous
+binary. **Update = re-run the same command** — it always fetches the latest release.
+Optional scrub-proxy service: `./install.sh --proxy --upstream <base-url> [--port 8766]`
+(systemd --user).
+
+**System-wide / appliance** (`/usr/local/bin` + `claimcheck-proxy.service` — the
+Raspberry Pi path; works on any x64 Linux server too):
+
+```bash
+sudo curl -L -o /usr/local/bin/claimcheck-upgrade \
+  https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/claimcheck-upgrade.sh
+sudo chmod +x /usr/local/bin/claimcheck-upgrade
+sudo claimcheck-upgrade           # [version] pins a release, "latest" resolves the newest tag
+```
+
+Stops the proxy around the swap, installs, restarts. Pi specifics (vault encryption,
+RAM, what's slow on a board): [docs/RASPBERRY-PI.md](docs/RASPBERRY-PI.md).
+
+Verify after any of the three: `ClaimCheck version` — prints e.g. `ClaimCheck 0.8.8`.
+
 ## Mode 1 — MCP server (stdio)
 
 For Cline, Cursor, Claude Desktop, or any MCP client. Adds three tools:

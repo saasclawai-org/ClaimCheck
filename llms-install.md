@@ -19,6 +19,11 @@ Installs to `~/.local/bin` (add it to PATH if prompted). Optional proxy service:
 `./install.sh --proxy --upstream <base-url> [--port 8766]` registers a systemd --user
 unit. Update = re-run the same command. Check health: `ClaimCheck status`.
 
+System-wide or Raspberry Pi appliance instead? Fetch `tools/claimcheck-upgrade.sh`
+once, then `sudo claimcheck-upgrade` per release (`latest` or an explicit version
+also accepted) — it arch-detects, swaps the binary under a running proxy service,
+and prints the new version when done. See docs/RASPBERRY-PI.md § Upgrading.
+
 Manual install:
 
 1. Download the latest release asset from
