@@ -109,8 +109,9 @@ internal static class Restore
                 text = text.Replace("[" + ph + "]", val);
                 // v0.9.0: bare-form tickets — models strip brackets when writing files
                 // (captured 2026-10-29: employees.json written with bare SSN_2/SSN_3).
-                // Boundary-guarded: never touches MY_SSN_1 variables or SSN_10 prefixes.
-                var rx = new Regex(@"(?<![A-Za-z0-9_])" + Regex.Escape(ph) + @"(?![A-Za-z0-9])");
+                // Boundary-guarded: never touches MY_SSN_1 variables, SSN_10 prefixes,
+                // or SSN_1_extra/SSN_1_2 underscore-suffixed identifiers.
+                var rx = new Regex(@"(?<![A-Za-z0-9_])" + Regex.Escape(ph) + @"(?![A-Za-z0-9_])");
                 var hits = rx.Matches(text).Count;
                 if (hits == 0) continue;
                 bareHits += hits;
