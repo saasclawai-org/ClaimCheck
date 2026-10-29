@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -70,12 +71,14 @@ internal static class Restore
 {
     public static void Run(string[] args)
     {
-        if (args.Length < 2)
+        var bare = args.Contains("--bare");
+        var positional = args.Skip(1).Where(a => a != "--bare").ToArray();
+        if (positional.Length < 1)
         {
-            Console.Error.WriteLine("usage: ClaimCheck restore <file|->   ('-' = stdin)");
+            Console.Error.WriteLine("usage: ClaimCheck restore <file|-> [--bare]   ('-' = stdin; --bare also restores bare-form tickets like SSN_2)");
             Environment.Exit(1);
         }
-        var src = args[1];
+        var src = positional[0];
         string text;
         IEnumerable<FileInfo> vaultFiles;
         if (src == "-")
@@ -92,6 +95,7 @@ internal static class Restore
             text = File.ReadAllText(p.FullName);
             vaultFiles = [Sanitizer.LoadVault(Sanitizer.ProjectRoot(Sanitizer.DirOf(p.FullName))).File];
         }
+        var bareHits = 0;
         foreach (var f in vaultFiles)
         {
             VaultData v;
@@ -99,9 +103,22 @@ internal static class Restore
             { Console.Error.WriteLine($"claimcheck: skipping vault {f.Name} ({verr})"); continue; }
             try { v = JsonSerializer.Deserialize<VaultData>(vjson) ?? new VaultData(); }
             catch { continue; }
-            foreach (var (ph, val) in v.Map)
+            // longest-first: keeps SSN_1 from matching inside SSN_10 during the bare pass
+            foreach (var (ph, val) in v.Map.OrderByDescending(kvp => kvp.Key.Length))
+            {
                 text = text.Replace("[" + ph + "]", val);
+                // v0.9.0: bare-form tickets — models strip brackets when writing files
+                // (captured 2026-10-29: employees.json written with bare SSN_2/SSN_3).
+                // Boundary-guarded: never touches MY_SSN_1 variables or SSN_10 prefixes.
+                var rx = new Regex(@"(?<![A-Za-z0-9_])" + Regex.Escape(ph) + @"(?![A-Za-z0-9])");
+                var hits = rx.Matches(text).Count;
+                if (hits == 0) continue;
+                bareHits += hits;
+                if (bare) text = rx.Replace(text, val);
+            }
         }
+        if (bareHits > 0 && !bare)
+            Console.Error.WriteLine($"claimcheck: {bareHits} bare-form ticket identifier(s) detected — re-run with --bare to restore them");
         Console.Out.Write(text);
     }
 }
