@@ -18,6 +18,9 @@ on:
 permissions:
   contents: write
 
+env:
+  DOTNET_MAJOR: "9"   # keep in sync with global.json; runner images ship 10.x runtimes too
+
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -45,7 +48,10 @@ jobs:
       - name: Restore host pack (singlefilehost template)
         shell: bash
         run: |
-          VER=$(dotnet --list-runtimes | awk '/Microsoft.NETCore.App/{print $2}' | sort -V | tail -1)
+          # pick the runtime major the app actually targets — runners ship newer
+          # majors too and 'highest version' grabbed a 10.x host for 9.x files (20:2x)
+          VER=$(dotnet --list-runtimes | awk '/Microsoft.NETCore.App/{print $2}' | grep -E "^${DOTNET_MAJOR}\." | sort -V | tail -1)
+          [ -n "$VER" ] || { echo "no .NET ${DOTNET_MAJOR} runtime found" >&2; exit 1; }
           echo "runtime version: $VER"
           mkdir -p /tmp/hostfetch && cd /tmp/hostfetch
           printf '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net9.0</TargetFramework></PropertyGroup><ItemGroup><PackageReference Include="Microsoft.NETCore.App.Host.${{ matrix.rid }}" Version="%s" ExcludeAssets="all" /></ItemGroup></Project>' "$VER" > hostfetch.csproj
