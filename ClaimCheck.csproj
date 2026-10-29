@@ -20,6 +20,8 @@
   <ItemGroup>
     <!-- Windows tray app is a separate net9.0-windows project; keep it out of this build -->
     <Compile Remove="tray/**/*.cs" />
+    <!-- bundlepack is a standalone release-packing helper (tools/), not part of the app -->
+    <Compile Remove="tools/bundlepack/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="GazetteerNames.json" />

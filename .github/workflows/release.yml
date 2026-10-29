@@ -1,0 +1,122 @@
+name: Release
+
+# Cut a release: bump <Version> in ClaimCheck.csproj to match the tag, then
+#   git tag v0.8.9 && git push origin v0.8.9
+# The version gate in tools/bundlepack (and the zip gate) FAIL the run if the
+# csproj Version does not match the tag — deliberate bump discipline.
+#
+# Linux/macOS legs replicate the proven v0.8.8 manual pipeline end-to-end
+# (R2R non-single-file publish -> apphost bind -> bundle -> gates) via
+# tools/bundlepack; Windows uses tools/package-release.sh (the sanctioned zip
+# path) plus an execution gate. SHA256SUMS.txt is generated and attached here,
+# so release artifacts are always verifiable.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,    rid: linux-x64 }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64 }
+          - { os: macos-latest,     rid: osx-arm64 }
+          - { os: macos-13,         rid: osx-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Publish R2R self-contained (non-single-file — the proven path)
+        run: dotnet publish -c Release -f net9.0 -r ${{ matrix.rid }} --self-contained true -p:PublishReadyToRun=true -o publish --nologo
+
+      - name: Restore host pack (singlefilehost template)
+        shell: bash
+        run: |
+          VER=$(dotnet --list-runtimes | awk '/Microsoft.NETCore.App/{print $2}' | sort -V | tail -1)
+          echo "runtime version: $VER"
+          mkdir -p /tmp/hostfetch && cd /tmp/hostfetch
+          printf '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net9.0</TargetFramework></PropertyGroup><ItemGroup><PackageReference Include="Microsoft.NETCore.App.Host.${{ matrix.rid }}" Version="%s" ExcludeAssets="all" /></ItemGroup></Project>' "$VER" > hostfetch.csproj
+          dotnet restore hostfetch.csproj
+
+      - name: Build packer helper
+        run: dotnet build tools/bundlepack -c Release --nologo
+
+      - name: Pack + verification gates (identity, R2R, binding, version run)
+        run: dotnet tools/bundlepack/bin/Release/net9.0/bundlepack.dll publish out/ClaimCheck "${GITHUB_REF_NAME#v}" ${{ matrix.rid }}
+
+      - name: Archive
+        shell: bash
+        run: tar czf "ClaimCheck-${GITHUB_REF_NAME}-${{ matrix.rid }}.tar.gz" -C out ClaimCheck
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ matrix.rid }}
+          path: ClaimCheck-${{ github.ref_name }}-${{ matrix.rid }}.tar.gz
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      # package-release.sh builds ClaimCheck.exe + ClaimCheckTray.exe (single-file,
+      # honest IL by design), zips both with INSTALL.txt, and FAILS if any is missing
+      - name: Package via sanctioned script
+        shell: bash
+        run: tools/package-release.sh "${GITHUB_REF_NAME#v}"
+
+      - name: Zip gate — the packaged exe runs and reports the tag version
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}".TrimStart("v")
+          Expand-Archive "ClaimCheck-v$ver-win-x64.zip" -DestinationPath zipgate -Force
+          $out = & "zipgate/ClaimCheck.exe" version
+          if ($LASTEXITCODE -ne 0 -or "$out" -notlike "ClaimCheck $ver*") { throw "zip gate failed: '$out'" }
+          "zip gate OK: $out"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifact-win-x64
+          path: ClaimCheck-${{ github.ref_name }}-win-x64.zip
+          if-no-files-found: error
+
+  release:
+    needs: [unix, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum ClaimCheck-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create/annotate release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "ClaimCheck $TAG" --generate-notes
+          gh release upload "$TAG" dist/ClaimCheck-* dist/SHA256SUMS.txt --clobber
+          echo "release $TAG updated"

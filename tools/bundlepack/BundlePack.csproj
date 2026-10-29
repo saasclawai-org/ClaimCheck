@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>bundlepack</AssemblyName>
+    <RootNamespace>BundlePack</RootNamespace>
+    <!-- Microsoft.NET.HostModel ships inside the SDK itself (no NuGet GA for 9.x).
+         $(MSBuildToolsPath) = the SDK dir (where Microsoft.Common.CurrentVersion.targets
+         lives); identical layout under setup-dotnet on GH runners. -->
+    <HostModelDll Condition="Exists('$(MSBuildToolsPath)/Microsoft.NET.HostModel.dll')">$(MSBuildToolsPath)/Microsoft.NET.HostModel.dll</HostModelDll>
+    <HostModelDll Condition="'$(HostModelDll)' == ''">$(MSBuildBinPath)/Microsoft.NET.HostModel.dll</HostModelDll>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.NET.HostModel">
+      <HintPath>$(HostModelDll)</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

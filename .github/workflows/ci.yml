@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # tests resolve the DLL via HERE.parent / "sanitize-mcp-dotnet" —
+          # keep the checkout dir name matching
+          path: sanitize-mcp-dotnet
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test deps
+        run: pip install mcp
+      - name: Build (net9.0)
+        working-directory: sanitize-mcp-dotnet
+        run: dotnet build -c Release -f net9.0 --nologo
+      - name: Core test suite
+        working-directory: sanitize-mcp-dotnet
+        run: |
+          set -euo pipefail
+          python3 test_recognizers.py
+          python3 test_vault_crypto.py
+          python3 test_vault_concurrency.py
+          python3 test_proxy_paths.py
+          python3 test_proxy.py
+          python3 test_battery.py
+          python3 test_dotnet.py
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: sanitize-mcp-dotnet
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Build app (net9.0-windows)
+        working-directory: sanitize-mcp-dotnet
+        run: dotnet build -c Release -f net9.0-windows --nologo
+      - name: Build tray
+        working-directory: sanitize-mcp-dotnet
+        run: dotnet build tray/ClaimCheckTray.csproj -c Release -f net9.0-windows --nologo
