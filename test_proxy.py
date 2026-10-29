@@ -71,6 +71,24 @@ def main() -> None:
         assert FEIN not in json.dumps(seen), "stream path leaked FEIN upstream"
         print("stream OK — split placeholder restored cleanly:", deltas)
 
+        # ---- streaming tool_calls with per-char fragmented arguments (v0.8.9)
+        # vLLM tokenizers split placeholders single-char inside tool args; the old
+        # partial-tail hold required a letter after '[' and leaked the ticket.
+        raw = post_raw({"model": "t", "stream": True, "messages": [
+            {"role": "user", "content": "TOOLCALL-MODE write the client FEIN to a file"}]})
+        args, tname = "", ""
+        for line in raw.splitlines():
+            if not line.startswith("data:") or "[DONE]" in line: continue
+            node = json.loads(line[5:])
+            for ch in node["choices"][0].get("delta", {}).get("tool_calls", []) or []:
+                fn = ch.get("function") or {}
+                if fn.get("name"): tname = fn["name"]
+                if fn.get("arguments"): args += fn["arguments"]
+        assert tname == "write_file", f"tool name missing: {tname!r}"
+        assert FEIN in args, f"tool-args restore failed on per-char fragments: {args!r}"
+        assert "[FE" not in args, f"ticket artifact leaked into tool args: {args!r}"
+        print("tool-args OK — per-char vLLM fragments restored cleanly:", args)
+
         # ---- encoded blob (base64 .env-style dump — the `base64 .env` leak class)
         import base64
         blob = base64.b64encode(b"FEIN=27-9415062\\nACCOUNT=AK-12345678\\nTOKEN=hunter2secret").decode()

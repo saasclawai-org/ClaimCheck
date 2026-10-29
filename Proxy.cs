@@ -14,7 +14,11 @@ namespace ClaimCheck;
 public static class Proxy
 {
     private static readonly Regex PlaceholderRx = new(@"\[[A-Z][A-Z_]*_\d+\]");
-    private static readonly Regex PartialTailRx = new(@"\[[A-Z][A-Z_0-9]{0,24}$");
+    // v0.8.9: partial-placeholder hold must also match a BARE '[' — vLLM tokenizers
+    // stream placeholders as single characters ([, S, S, N, _, 1, ]) and the old
+    // \[[A-Z]...\ requirement let the leading bracket escape the hold, leaking the
+    // ticket across fragments (found 2026-10-29 via proliant-vl qwen3-coder lane).
+    private static readonly Regex PartialTailRx = new(@"\[[A-Z_0-9]{0,24}$");
 
     /// <summary>Fail-closed: if the scrub pass throws, hold the request (503) instead of
     /// forwarding unscrubbed. Default on; SANITIZE_FAIL_CLOSED=0 to disable.</summary>
