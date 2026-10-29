@@ -29,6 +29,12 @@ ERRLOG = None
 
 
 class Stub(BaseHTTPRequestHandler):
+    # HTTP/1.1 keep-alive: the default per-request close can RST pooled upstream
+    # connections mid-burst (24 parallel mints), which surfaces as intermittent
+    # proxy 502s — CI hit this on run 2 (2026-10-29). Handler already sends
+    # Content-Length and drains bodies, so keep-alive is safe here.
+    protocol_version = "HTTP/1.1"
+
     def _hit(self):
         # Drain the request body BEFORE responding: closing without reading it can RST
         # mid-body under parallel load (client sees IOException -> proxy 502s intermittently).
