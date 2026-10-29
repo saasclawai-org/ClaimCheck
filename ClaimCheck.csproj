@@ -6,7 +6,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>0.8.7</Version>
+    <Version>0.8.8</Version>
     <!-- v0.6.1 intent: ONNX/DirectML natives must ride INSIDE the single-file exe —
          loose natives never survive install.ps1 (it copies only the exes). A plain
          `dotnet publish` silently drops them (~38 MB) without this flag. -->

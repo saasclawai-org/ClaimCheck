@@ -38,9 +38,23 @@ if (args.Length > 0 && args[0] is "status" or "--status")
     return Status.Run(args);
 }
 
+if (args.Length > 0 && args[0] is "version" or "--version")
+{
+    Console.Out.WriteLine($"ClaimCheck {Status.Version}");
+    return 0;
+}
+
 if (args.Length > 0 && args[0] == "--proxy")
 {
     return await Proxy.Run(args);
+}
+
+if (args.Length > 0)
+{
+    Console.Error.WriteLine($"Unknown command: {args[0]}");
+    Console.Error.WriteLine("usage: ClaimCheck [status | version | sanitize-text <text> | sanitize-file <path> [--content] | import-clients <file> | restore <backup> | --proxy --upstream <base-url> [--port 8766]]");
+    Console.Error.WriteLine("       ClaimCheck              (no arguments = MCP stdio server)");
+    return 1;
 }
 
 var builder = Host.CreateApplicationBuilder(args);
