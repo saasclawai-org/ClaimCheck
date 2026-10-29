@@ -3,7 +3,7 @@
   "name": "io.github.saasclawai-org/claimcheck",
   "display_name": "ClaimCheck",
   "description": "Local-first PII pseudonymization MCP server. Reversible vault, no account, no cloud.",
-  "version": "0.1.1",
+  "version": "0.8.8",
   "repository": {
     "source": "github",
     "url": "https://github.com/saasclawai-org/ClaimCheck"
@@ -20,7 +20,7 @@
     {
       "registryType": "GITHUB",
       "identifier": "saasclawai-org/ClaimCheck",
-      "version": "0.1.1",
+      "version": "0.8.8",
       "transport": {
         "type": "stdio"
       }
