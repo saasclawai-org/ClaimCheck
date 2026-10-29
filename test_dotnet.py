@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
@@ -23,8 +24,13 @@ NOT_PII = ["server_port = 8080", "version = 1.2.3", "theme_color = #ff00ff",
 PH_RE = re.compile(r"\[[A-Z_]+_\d+\]")
 
 async def main() -> None:
+    # Fresh vault home: the parity assertion expects fixture values to mint as
+    # _1 tickets, which only holds on an empty vault (other tests in the suite
+    # mint FEIN/EMAIL/CARD/... into the default vault when they run first).
+    vault_home = tempfile.mkdtemp(prefix="cc-dotnet-parity-")
+    env = dict(os.environ, SANITIZE_NER="0", HOME=vault_home)
     params = StdioServerParameters(command="dotnet", args=[str(DLL)], cwd=str(HERE),
-                                env=dict(os.environ, SANITIZE_NER="0"))
+                                env=env)
     async with stdio_client(params) as (r, w):
         async with ClientSession(r, w) as s:
             await s.initialize()
@@ -59,7 +65,7 @@ async def main() -> None:
     scrub = DOTNET_DIR / "_restore_check.txt"
     scrub.write_text(t4["sanitized"])
     out = subprocess.run(["dotnet", str(DLL), "restore", str(scrub)],
-                         capture_output=True, text=True).stdout
+                         capture_output=True, text=True, env=env).stdout
     assert "bob@corp.test" in out, f"restore failed: {out!r}"
     scrub.unlink()
     print("restore CLI OK")
