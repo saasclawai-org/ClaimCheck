@@ -23,7 +23,7 @@ MCP server, on-wire proxy.
 
 ```bash
 curl -L -o claimcheck.tar.gz \
-  https://github.com/saasclawai-org/ClaimCheck/releases/download/v0.8.6/ClaimCheck-v0.8.6-linux-arm64.tar.gz
+  https://github.com/saasclawai-org/ClaimCheck/releases/download/v0.8.7/ClaimCheck-v0.8.7-linux-arm64.tar.gz
 tar xzf claimcheck.tar.gz
 chmod +x ClaimCheck
 sudo mv ClaimCheck /usr/local/bin/
