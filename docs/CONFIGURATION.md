@@ -67,6 +67,28 @@ probabilistically restored. Fail-soft: if the service is down, the tier is skipp
   Systemd units must set `Environment=HOME=/home/USER` explicitly.
 - `CC_BIN` — test override: binary the Python suites invoke (default `dotnet bin/Release/net9.0/ClaimCheck.dll`).
 
+## Tier caps and payload size (what runs when)
+
+The fuzzy tiers have input caps so a giant request can never stall the lane. Caps are
+fail-soft — the tier skips cleanly — and only ever drop a *bonus* layer: the
+deterministic patterns and known-value re-ticketing run at every size, unconditionally.
+
+| Input size | Patterns + re-ticketing | Presidio | NER |
+|---|---|---|---|
+| < 50,000 chars (~12.5k tokens) | ✓ | ✓ | ✓ |
+| 50,000–200,000 chars (~12.5k–50k tokens) | ✓ | skipped | ✓ |
+| > 200,000 chars (> 50k tokens) | ✓ | skipped | skipped |
+
+Conversion rule of thumb: ~4 characters per token and ~5.7 characters per word, so
+50,000 chars ≈ 12,500 tokens ≈ 8,500 words, and 200,000 chars ≈ 50,000 tokens ≈ 33,000
+words.
+
+Tune with `SANITIZE_PRESIDIO_MAX_CHARS` and `SANITIZE_NER_MAX_CHARS` (defaults 50,000 and
+200,000 — see the sections above). One nuance for agent sessions: stateless APIs re-send
+the whole conversation history on every call, so a session's request payload *is* its
+history — long tasks (29k+ tokens ≈ 118k+ chars) graduate out of the Presidio tier
+automatically, and a fresh task gets the full stack back.
+
 ## CLI flags
 
 ```
