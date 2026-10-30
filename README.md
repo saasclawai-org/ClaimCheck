@@ -329,7 +329,8 @@ model can reason consistently across an entire session. The vault lives on your 
 is never transmitted — encrypted at rest on Windows (DPAPI), or anywhere via
 `SANITIZE_VAULT_PASSWORD` (AES-GCM). CLI use scopes a vault per project root; each proxy
 lane carries its own. Multi-project and multi-user shapes (shared lane vs lane-per-tenant)
-are covered in the [fleet deployment guide](docs/fleet-deployment.md).
+are covered in the [fleet deployment guide](docs/fleet-deployment.md). The full
+environment-variable reference lives in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 Restore locally whenever you need real values back:
 
