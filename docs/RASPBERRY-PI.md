@@ -42,10 +42,28 @@ sudo curl -L -o /usr/local/bin/claimcheck-upgrade \
   https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/claimcheck-upgrade.sh
 sudo chmod +x /usr/local/bin/claimcheck-upgrade
 
-sudo claimcheck-upgrade           # release the script was shipped for
-sudo claimcheck-upgrade latest    # or resolve the newest release tag
-sudo claimcheck-upgrade 0.8.9     # or pin an explicit version
+sudo claimcheck-upgrade           # newest release (default = latest)
+sudo claimcheck-upgrade 0.9.1     # or pin an explicit version
 ```
+
+**Multi-lane / home-dir layout** (e.g. predator: binary at `/home/norman/claimcheck/ClaimCheck`,
+lanes `claimcheck-proxy@<lane>`) — same script, kept next to the binary with a conf file:
+
+```bash
+curl -fsSL -o ~/claimcheck/claimcheck-upgrade \
+  https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/claimcheck-upgrade.sh
+chmod +x ~/claimcheck/claimcheck-upgrade
+cat > ~/claimcheck/claimcheck-upgrade.conf <<'EOF'
+BIN_PATH=/home/norman/claimcheck/ClaimCheck
+UNIT_PATTERN='claimcheck-proxy@*'
+EOF
+~/claimcheck/claimcheck-upgrade latest
+```
+
+The updater checksum-verifies every download against the release's SHA256SUMS, smoke-checks
+the binary (`version` must match the tag), saves the previous build as `ClaimCheck.prev`
+for rollback, restarts **only the lanes that were running**, and health-checks each one
+after. sudo is invoked only for the systemctl restarts.
 
 The script detects your arch (the same script works on x64 Linux servers), stops the
 proxy around the swap, installs, restarts the service, and prints the new version as
