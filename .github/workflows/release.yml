@@ -109,6 +109,10 @@ jobs:
     needs: [unix, windows]
     runs-on: ubuntu-latest
     steps:
+      # gh release create --generate-notes needs a git context — this job used to only
+      # download artifacts and died with "not a git repository" on its FIRST ever run
+      # (v0.9.0, 2026-10-30; v0.8.9's release never assembled, so it was never hit).
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
