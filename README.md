@@ -333,6 +333,18 @@ ClaimCheck restore <file->        # or read from stdin with -
 ClaimCheck restore - --vault <path>   # pin exactly one vault (default sweep: sorted order, warns on same-ticket/different-value conflicts)
 ```
 
+Inspect the vault without restoring:
+
+```bash
+ClaimCheck vault-list                    # every vault under ~/.sanitize-mcp/vaults/, full contents
+ClaimCheck vault-list --summary          # entry counts per vault, no values
+ClaimCheck vault-list --vault <path>     # pin one vault
+```
+
+Entries print as `[FEIN_1] = 27-9415062`. A vault written with `SANITIZE_VAULT_PASSWORD`
+shows as `locked or unreadable` unless the command runs with the same password set.
+Listing is entirely local — values never leave the machine.
+
 ## NER tier — free-text names, orgs, locations (opt-in)
 
 The regex tier can't see free-text names. ClaimCheck optionally runs a local English NER

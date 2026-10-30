@@ -43,6 +43,9 @@ feature.
    the same vault passed with `--vault` (v0.9.1: `ClaimCheck restore - --vault <path>`
    pins exactly one vault; the default multi-vault sweep restores in sorted order and
    warns when a ticket being restored exists in several vaults with different values).
+   Inspect first: `ClaimCheck vault-list [--vault <path>] [--summary]` prints ticket→value
+   entries (or counts only); password-protected vaults show as locked unless the command
+   runs with the same `SANITIZE_VAULT_PASSWORD`.
 2. **Want cross-lane consistency?** Point lanes at the same `--vault` file — same
    value → same ticket in both. Trade-off: shared blast radius. Reasonable for two
    personal lanes; keep fleets separate.

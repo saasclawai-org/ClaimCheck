@@ -111,8 +111,13 @@ prose). Container quick start and full tunables: `docs/PRESIDIO.md`.
 ## Restoring original values (local only)
 
 CLI: `ClaimCheck restore <file|->` maps placeholders back to real values.
-The vault lives under the user profile directory (`.claimcheck`) and never
+The vault lives under the user profile directory (`.sanitize-mcp/vaults`) and never
 leaves the machine.
+
+Inspect the vault: `ClaimCheck vault-list` prints every vault's ticket→value entries
+(`--summary` for counts only, `--vault <path>` to pin one). Password-protected vaults
+show as `locked or unreadable` unless the command runs with the same
+`SANITIZE_VAULT_PASSWORD`.
 
 Vault encryption (v0.6.0+): on Windows, vault files are DPAPI-encrypted at rest by default.
 Set `SANITIZE_VAULT_PASSWORD` for portable AES-GCM password mode (forgotten password =
