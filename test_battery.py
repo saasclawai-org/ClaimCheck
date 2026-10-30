@@ -119,6 +119,9 @@ def sk(name):
     skips.append(name)
 
 # ---------- battery ----------
+# v0.9.2: DATE is off by default now — the battery's DATE check runs with it explicitly
+# enabled, plus dedicated checks proving the default (dates pass through untouched).
+os.environ.setdefault("SANITIZE_DATES", "1")
 b = scrub(BATTERY)
 s = b["sanitized"]
 
@@ -146,6 +149,15 @@ else:
 ck("battery: no raw FEIN", "98-7654321" not in s)
 ck("battery: no raw classic pat", GHPAT_CLASSIC not in s)
 ck("battery: DATE ticketed by design (A)", has(b, "DATE"))
+# v0.9.2: default = dates pass through; SANITIZE_DATES=1 re-enables ticketing
+os.environ.pop("SANITIZE_DATES", None)
+_b2 = scrub("Deadline: December 15, 2026 for Acme Corp")
+ck("battery: dates pass through by default",
+   "December 15, 2026" in _b2["sanitized"] and not has(_b2, "DATE"))
+os.environ["SANITIZE_DATES"] = "1"
+_b3 = scrub("Deadline: December 15, 2026 for Acme Corp")
+ck("battery: SANITIZE_DATES=1 re-enables DATE",
+   has(_b3, "DATE") and "December 15, 2026" not in _b3["sanitized"])
 ck("battery: negative B raw", "rotation every 90 days" in s)
 ck("battery: negative C raw", "board meeting" in s)
 # crypto/PERSON/LOCATION coverage is text-level: on a persistent vault the

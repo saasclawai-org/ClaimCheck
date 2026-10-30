@@ -88,6 +88,14 @@ dotnet publish -c Release -f net9.0 -r linux-x64 --self-contained true -p:Publis
 - **`sanitize_text(text)`** — returns scrubbed text + findings summary
   (never original values).
 
+## Optional: date ticketing (off by default)
+
+Dates are left untouched by default (v0.9.2) — they're operational context (deadlines,
+notice dates), and ticketing them made the model unable to answer "which deadline is
+earlier?" style questions. Set `SANITIZE_DATES=1` in the ClaimCheck process environment
+if your documents treat dates as sensitive. Existing DATE tickets in old vaults still
+restore normally.
+
 ## Optional: NER tier (free-text names / orgs / locations)
 
 Set environment variable `SANITIZE_NER=1` on the server process. First use

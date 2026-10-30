@@ -265,6 +265,11 @@ vaults are per-instance namespaces, restorable only through the instance that sc
 them. Saves are atomic and locked (concurrent-safe); upstream connection failures return
 a clean 502, never a stack-trace 500.
 
+**Dates are not ticketed by default (v0.9.2):** notice deadlines and other dates are
+operational context — ticketing them made the model unable to answer "which deadline is
+earlier?" style questions (it compared opaque tickets and guessed). Set `SANITIZE_DATES=1`
+to re-enable date ticketing when your workflow treats dates as sensitive.
+
 **Scrub coverage:** only `POST` requests ending in `chat/completions` are scrubbed and
 restored — every other path (embeddings, image endpoints, native provider APIs like
 Anthropic's `/v1/messages` or OpenAI's Responses API) is forwarded verbatim. Reach

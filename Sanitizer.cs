@@ -137,7 +137,6 @@ public static class Sanitizer
         // DATE: full numeric dates (4-digit year only — bare years are Safe-Harbor-safe) and
         // named-month forms. Regex enforces month 01-12 / day 01-31; Feb-31 passes but the
         // cost is a reversible mask, not data loss.
-        ("DATE",           new Regex(@"(?i)\b(?:(?:0?[1-9]|1[0-2])[/.-](?:0?[1-9]|[12]\d|3[01])[/.-](?:19|20)\d{2}|(?:19|20)\d{2}[-/.](?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12]\d|3[01])|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+(?:19|20)\d{2}|\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+(?:19|20)\d{2})\b"), null),
         ("DL",             new Regex(@"(?i)\b(?:driver'?s?\s+lic(?:ense)?|dl)\s*(?:no\.?|number|#)?\s*[:=]?\s*[A-Z0-9]{5,12}\b"), null),
         ("ROUTING",        new Regex(@"(?i)\b(?:routing|aba)\s*(?:no\.?|number|#)?\s*[:=]?\s*\d{9}\b"), null),
         ("IP",             new Regex(@"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b"), null),
@@ -149,7 +148,23 @@ public static class Sanitizer
         ("ADDRESS",        new Regex(@"(?i)\b\d{1,5}\s+(?:[A-Z][a-z]+\s){1,4}(?:street|st|avenue|ave|blvd|boulevard|road|rd|drive|dr|lane|ln|court|ct|way|terrace|ter|place|pl|circle|cir)\.?,?\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*,?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?\b"), null),
     };
 
-    public static List<(string Type, Regex Rx, Func<string, bool>?)> BuiltIn() => BuiltInPatterns.ToList();
+    // v0.9.2: dates are operational context in notice workflows — ticketing them made
+    // date comparisons impossible for the model ("which deadline is earlier?" flipped
+    // to a coin flip, 2026-10-30 live demo: both dates ticketed, model guessed wrong).
+    // OFF by default; opt back in with SANITIZE_DATES=1. Existing DATE tickets in old
+    // vaults still restore (restore is value-based, not tier-based).
+    private static readonly (string Type, Regex Rx, Func<string, bool>?) DatePattern =
+        ("DATE", new Regex(@"(?i)\b(?:(?:0?[1-9]|1[0-2])[/.-](?:0?[1-9]|[12]\d|3[01])[/.-](?:19|20)\d{2}|(?:19|20)\d{2}[-/.](?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12]\d|3[01])|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+(?:19|20)\d{2}|\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+(?:19|20)\d{2})\b"), null);
+
+    public static bool DatesEnabled =>
+        Environment.GetEnvironmentVariable("SANITIZE_DATES") is "1" or "on" or "true";
+
+    public static List<(string Type, Regex Rx, Func<string, bool>?)> BuiltIn()
+    {
+        var patterns = BuiltInPatterns.ToList();
+        if (DatesEnabled) patterns.Add(DatePattern);
+        return patterns;
+    }
 
     private static readonly Regex EncodedBlobRx = new Regex(@"[A-Za-z0-9+/]{48,}={0,2}|[0-9a-fA-F]{96,}");
 
@@ -213,6 +228,7 @@ public static class Sanitizer
     public static List<(string Type, Regex Rx, Func<string, bool>?)> PatternsFor(DirectoryInfo root)
     {
         var list = BuiltInPatterns.ToList();
+        if (DatesEnabled) list.Add(DatePattern);
         var f = Path.Combine(root.FullName, ".sanitize-patterns.json");
         if (File.Exists(f))
         {

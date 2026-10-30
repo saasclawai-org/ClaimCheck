@@ -3,6 +3,7 @@
 + regression on the original ten. Regex tier only (SANITIZE_NER not needed)."""
 import asyncio
 import json
+import os
 import re
 from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
@@ -60,7 +61,8 @@ TEXT = (
 )
 
 async def main():
-    params = StdioServerParameters(command="dotnet", args=[str(DLL)], cwd=str(HERE))
+    params = StdioServerParameters(command="dotnet", args=[str(DLL)], cwd=str(HERE),
+                                   env=dict(os.environ, SANITIZE_DATES="1"))
     async with stdio_client(params) as (r, w):
         async with ClientSession(r, w, read_timeout_seconds=300) as s:
             await s.initialize()
