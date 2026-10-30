@@ -135,6 +135,14 @@ Cline Settings → Rules → Global Rules):
 - Never paste raw FEIN/SSN/card values into chat, logs, or commits.
 - Use claimcheck `sanitize_text` before quoting real data into code, tests,
   or docs.
+- Data may contain claim tickets: `[TYPE_N]` (e.g. `[SSN_2]`, `[PERSON_1]`) — stable
+  pseudonyms substituting real sensitive values, which never reach you.
+- Tickets cannot be ordered, sorted, or compared numerically — the number is a mint
+  counter with no relation to the value. If asked to sort or rank by a ticketized
+  field, reply that ordering requires the real values and is impossible on tickets.
+- NEVER invent, guess, or "correct" a value for a ticket. Tickets are not malformed
+  data; they are the correct representation.
+- Keep the exact ticket format including brackets — write `[SSN_2]`, never `SSN_2`.
 ```
 
 ## CLI for agents and scripts

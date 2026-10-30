@@ -124,6 +124,20 @@ refuse, quote the token, or spell the label backwards. If it produces reversed r
 value reached the model and the scrub failed. Unambiguous in both directions, model-side, immune to
 restore confusion.
 
+## Ticket semantics (for agents)
+
+Scrubbed data contains claim tickets: `[TYPE_N]` (e.g. `[SSN_2]`, `[PERSON_1]`) — stable
+pseudonyms substituting real sensitive values, which never reach the model. Agent rules:
+
+- Equal tickets = equal values — sound for identity checks, joins, dedup, counts.
+- Tickets cannot be ordered, sorted, or compared numerically; the number is a mint
+  counter with no relation to the value. Decline sort/rank requests on ticketized fields.
+- Never invent, guess, or "correct" a value for a ticket, and keep the exact format
+  including brackets (`[SSN_2]`, not `SSN_2`).
+
+Artifacts written from ticketized context may contain bare-form tickets; `ClaimCheck
+restore <file> --bare` maps both forms back to real values (vault required).
+
 Status: `ClaimCheck status` (human-readable) or `ClaimCheck status --json`
 (machines; exit code 3 = proxy not detected). Reports whether the scrub proxy
 is running (port, upstream, request/scrubbed counters on 0.3.0+), NER mode,

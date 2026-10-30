@@ -39,6 +39,12 @@ if (args.Length > 0 && args[0] is "status" or "--status")
     return Status.Run(args);
 }
 
+if (args.Length > 0 && args[0] is "vault-list" or "--vault-list")
+{
+    VaultList.Run(args);
+    return 0;
+}
+
 if (args.Length > 0 && args[0] is "version" or "--version")
 {
     Console.Out.WriteLine($"ClaimCheck {Status.Version}");
@@ -53,7 +59,7 @@ if (args.Length > 0 && args[0] == "--proxy")
 if (args.Length > 0)
 {
     Console.Error.WriteLine($"Unknown command: {args[0]}");
-    Console.Error.WriteLine("usage: ClaimCheck [status | version | sanitize-text <text> | sanitize-file <path> [--content] | import-clients <file> | restore <backup> | --proxy --upstream <base-url> [--port 8766]]");
+    Console.Error.WriteLine("usage: ClaimCheck [status | version | vault-list [--vault <path>] [--summary] | sanitize-text <text> | sanitize-file <path> [--content] | import-clients <file> | restore <file|-> [--bare] | --proxy --upstream <base-url> [--port 8766]]");
     Console.Error.WriteLine("       ClaimCheck              (no arguments = MCP stdio server)");
     return 1;
 }

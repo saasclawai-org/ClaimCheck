@@ -41,6 +41,36 @@ public static class Proxy
     private static string? _upstreamPrefix;
     private static List<(string Type, Regex Rx, Func<string, bool>?)> _patterns = new();
 
+    // v0.9.0 audit log — SANITIZE_PROXY_LOG: "1" keeps the legacy stderr request
+    // summary; any other non-empty value is treated as a file path and every
+    // forwarded request body (post-scrub — tickets only, never values) is
+    // appended there as one JSON line. Grep-able answer to "what did the model see?".
+    private static readonly string? AuditPath = ResolveAuditPath();
+    private static readonly object AuditLock = new();
+
+    private static string? ResolveAuditPath()
+    {
+        var v = Environment.GetEnvironmentVariable("SANITIZE_PROXY_LOG");
+        if (string.IsNullOrWhiteSpace(v) || v == "1") return null;
+        try { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(v))!); } catch { }
+        return v;
+    }
+
+    private static void AuditBody(string body)
+    {
+        if (AuditPath is null) return;
+        try
+        {
+            var line = JsonSerializer.Serialize(new
+            {
+                ts = DateTime.UtcNow.ToString("O"),
+                body,
+            });
+            lock (AuditLock) File.AppendAllText(AuditPath, line + Environment.NewLine);
+        }
+        catch { /* auditing must never break the proxy */ }
+    }
+
     // ---- live status snapshot (for the /status endpoint + ClaimCheckTray) ----
 
     public static int Port { get; private set; }
@@ -218,7 +248,9 @@ public static class Proxy
             req.Headers.TryAddWithoutValidation("Authorization", auth.ToArray());
         if (ctx.Request.Headers.TryGetValue("Accept", out var accept))
             req.Headers.TryAddWithoutValidation("Accept", accept.ToArray());
-        req.Content = new StringContent(root?.ToJsonString() ?? body, Encoding.UTF8, "application/json");
+        var payload = root?.ToJsonString() ?? body;
+        req.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+        AuditBody(payload);
 
         HttpResponseMessage resp;
         try

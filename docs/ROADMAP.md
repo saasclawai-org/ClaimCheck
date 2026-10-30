@@ -37,6 +37,10 @@ Reference: `docs/competitive-analysis-2026-10-24.md` (Sunglasses, Semgrep, vulnh
 - [ ] Cloudflare route + Access policy for the fleet proxy
 - [x] Fleet deployment guide (`docs/fleet-deployment.md`) — vault scoping, shared-lane vs
       lane-per-tenant, restore rights, lane verification (wire proof + /status fingerprint)
+- [ ] Realistic mode (opt-in): per-type reserved-namespace fake data instead of tickets —
+      SSN 900-xx-xxxx, FEIN 00-xxxxxxx, email `@claimcheck.invalid`, phone 555-01xx —
+      format-valid for model workflows, self-identifying as synthetic, collision-free.
+      Tickets stay the default (leak visibility + forensic clarity). Design discussion 2026-10-29.
 - [ ] Pi + Windows resync to latest (Pi: git pull + rebuild + proxy restart)
 
 ## Phase 2 — Security tiers (free core — the differentiators)

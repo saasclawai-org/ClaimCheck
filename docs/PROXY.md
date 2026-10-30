@@ -144,6 +144,22 @@ Pro-tier boundary (see [ROADMAP.md](ROADMAP.md#phase-3--pro-tier-revenue));
 until then, **isolation is a deployment decision: one lane per tenant, each
 with its own `--vault`.**
 
+## Audit log (what crossed the wire)
+
+`SANITIZE_PROXY_LOG` has two modes: set it to `1` for the legacy stderr request
+summary (`POST /chat/completions -> 200 (812ms)`), or set it to a **file path**
+to append every forwarded request body as one JSON line (`{"ts": …, "body": …}`).
+Bodies are logged **after scrubbing** — the file contains tickets only, never
+raw values — making it a permanent, grep-able answer to "what did the model see?":
+
+```bash
+grep -c '123-45-6789' audit.log   # 0 — values never cross
+grep -c 'SSN_1' audit.log         # every request that carried the ticket
+```
+
+Keep the file root-owned/0600: it contains conversation content (ticketized,
+but not free of meaning).
+
 ## Optional: Presidio detection backend
 
 `SANITIZE_PRESIDIO_URL` points a lane at a live [Presidio analyzer](https://microsoft.github.io/presidio/)
