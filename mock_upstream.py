@@ -7,6 +7,24 @@ class H(http.server.BaseHTTPRequestHandler):
         body = self.rfile.read(n).decode()
         open("/tmp/mock-last-request.json", "w").write(body)
         if '"stream":true' in body.replace(" ", ""):
+            if "ECHOMODE" in body:
+                # v0.9.0: echo the scrubbed user content per-character — streaming
+                # restore regression for realistic-mode fakes split across fragments
+                req = json.loads(body)
+                user = "".join(m.get("content", "") for m in req.get("messages", []) if m.get("role") == "user")
+                user = user.replace("ECHOMODE", "").strip()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Connection", "close")
+                self.close_connection = True
+                self.end_headers()
+                for ch in user:
+                    ev = json.dumps({"choices": [{"delta": {"content": ch}}]})
+                    self.wfile.write(f"data: {ev}\n\n".encode())
+                    self.wfile.flush()
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush()
+                return
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.end_headers()

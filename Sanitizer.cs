@@ -62,9 +62,11 @@ public static class Sanitizer
 
     private static readonly (string Type, Regex Rx, Func<string, bool>? Validator)[] BuiltInPatterns =
     {
-        ("FEIN",       new Regex(@"\b\d{2}-\d{7}\b"), null),
+        // v0.9.0: 00-prefix reserved for realistic-mode fakes (00 is never issued as an EIN)
+        ("FEIN",       new Regex(@"\b(?!00-)\d{2}-\d{7}\b"), null),
         ("SSN",        new Regex(@"\b(?!000|666|9\d\d)\d{3}[- ](?!00)\d{2}[- ](?!0000)\d{4}\b"), null),
-        ("EMAIL",      new Regex(@"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), null),
+        // v0.9.0: claimcheck.invalid reserved for realistic-mode fakes (RFC 2606 .invalid)
+        ("EMAIL",      new Regex(@"\b[A-Za-z0-9._%+-]+@(?!claimcheck\.invalid)[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), null),
         ("IMEI",           new Regex(@"(?i)\b(?:imei)\s*(?:no\.?|number|#)?\s*[:=]?\s*\d{15}\b"), s => Sanitizer.Luhn(s[^15..])),
         // IBAN before CARD: a 13-19 digit run inside a long IBAN can match CARD's generic
         // pattern (and even pass Luhn), fragmenting the IBAN and leaking its tail
@@ -75,7 +77,8 @@ public static class Sanitizer
         // "Card: 5500 0000 5555 5559" passed through plain because Luhn rejects it).
         ("CARD",       new Regex(@"(?i)\b(?:card(?:\s*holder)?|credit|debit|visa|mastercard|amex|cc)\s*(?:no\.?|number|#)?\s*[:=]?\s*(?:\d[ -]?){13,19}(?!\d)"), null),
         ("CARD",       new Regex(@"(?<!\d)(?:\d[ -]?){13,19}(?!\d)"), Luhn),
-        ("PHONE",      new Regex(@"(?<![\d-])(\+?1[-. ])?(\(\d{3}\)[- ]|\d{3}[-. ])\d{3}[-. ]\d{4}(?!\d)"), null),
+        // v0.9.0: 010 exchange reserved for realistic-mode fakes (NANP fictional range)
+        ("PHONE",      new Regex(@"(?<![\d-])(\+?1[-. ])?(\(\d{3}\)[- ]|\d{3}[-. ])(?!010[-. ])\d{3}[-. ]\d{4}(?!\d)"), null),
         ("AWS_KEY",    new Regex(@"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), null),
         ("GH_TOKEN",   new Regex(@"\bgh[pousr]_[A-Za-z0-9]{36,255}\b"), null),
         // v0.8.4: modern provider token prefixes — the classic-prefix rows miss

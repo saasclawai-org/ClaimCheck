@@ -143,6 +143,10 @@ Cline Settings → Rules → Global Rules):
 - NEVER invent, guess, or "correct" a value for a ticket. Tickets are not malformed
   data; they are the correct representation.
 - Keep the exact ticket format including brackets — write `[SSN_2]`, never `SSN_2`.
+- With realistic mode on (`SANITIZE_FAKE_DATA=1`), supported types arrive as
+  format-valid fakes in reserved ranges (`900-00-1234`, `00-3920175`,
+  `x@claimcheck.invalid`, `(555) 010-…`) — treat them as ordinary data; they are
+  synthetic by construction.
 ```
 
 ## CLI for agents and scripts

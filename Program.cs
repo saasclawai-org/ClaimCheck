@@ -123,6 +123,7 @@ internal static class Restore
                 bareHits += hits;
                 if (bare) text = rx.Replace(text, val);
             }
+            text = FakeData.RestoreFake(text, v);
         }
         if (bareHits > 0 && !bare)
             Console.Error.WriteLine($"claimcheck: {bareHits} bare-form ticket identifier(s) detected — re-run with --bare to restore them");

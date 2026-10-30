@@ -41,6 +41,9 @@ Reference: `docs/competitive-analysis-2026-10-24.md` (Sunglasses, Semgrep, vulnh
       SSN 900-xx-xxxx, FEIN 00-xxxxxxx, email `@claimcheck.invalid`, phone 555-01xx —
       format-valid for model workflows, self-identifying as synthetic, collision-free.
       Tickets stay the default (leak visibility + forensic clarity). Design discussion 2026-10-29.
+      → IMPLEMENTED v0.9.0 (`SANITIZE_FAKE_DATA=1`): SSN/FEIN/EMAIL/PHONE/CARD fakes,
+      deterministic per ticket, reserved namespaces; recognizers updated to skip the
+      reserved forms so fakes never re-mint on history re-sends.
 - [ ] Pi + Windows resync to latest (Pi: git pull + rebuild + proxy restart)
 
 ## Phase 2 — Security tiers (free core — the differentiators)

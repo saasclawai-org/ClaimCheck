@@ -63,6 +63,11 @@ public static class Tools
             lines = nerText.Split('\n').ToList();
             findings.AddRange(nerFindings);
         }
+        if (FakeData.Enabled)
+        {
+            joined = FakeData.Substitute(joined, vault);
+            lines = joined.Split('\n').ToList();
+        }
         Sanitizer.SaveVault(vaultFile, vault);
         var summary = Sanitizer.Summary(findings);
         if (encCount > 0) summary["encoded_blobs_redacted"] = encCount;

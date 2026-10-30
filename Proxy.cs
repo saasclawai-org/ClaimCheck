@@ -334,6 +334,7 @@ public static class Proxy
         }
         var (kvText, kvCount) = Sanitizer.ScrubKnownValues(scrubbed, vault);
         if (kvCount > 0) { scrubbed = kvText; n += kvCount; }
+        if (FakeData.Enabled) scrubbed = FakeData.Substitute(scrubbed, vault);
         return (scrubbed, encoded + pemCount + n);
     }
 
@@ -377,12 +378,13 @@ public static class Proxy
 
     private static string RestoreText(string text, VaultData vault)
     {
-        if (!PlaceholderRx.IsMatch(text)) return text;
+        if (!PlaceholderRx.IsMatch(text) && !FakeData.Enabled) return text;
         lock (Sanitizer.VaultLock)
         {
             foreach (var (ph, val) in vault.Map)
                 text = text.Replace("[" + ph + "]", val);
         }
+        text = FakeData.RestoreFake(text, vault);
         return text;
     }
 
@@ -390,8 +392,16 @@ public static class Proxy
     {
         var text = sb.ToString();
         var restored = RestoreText(text, vault);
-        var hold = PartialTailRx.Match(restored);
-        var emitLen = hold.Success ? restored.Length - hold.Length : restored.Length;
+        var emitLen = restored.Length;
+        var bm = PartialTailRx.Match(restored);
+        if (bm.Success)
+            emitLen = restored.Length - bm.Length;
+        else if (FakeData.Enabled)
+        {
+            var held = FakeData.HeldFakeSuffix(restored, vault);
+            if (held is not null)
+                emitLen = restored.Length - held.Length;
+        }
         sb.Clear();
         if (emitLen < restored.Length) sb.Append(restored[emitLen..]);
         return restored[..emitLen];
