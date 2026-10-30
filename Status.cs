@@ -110,7 +110,7 @@ public static class Status
     {
         if (!Ner.Enabled) return ("off (SANITIZE_NER=1 to enable)", false);
         var modelDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claimcheck", "models",
+            Sanitizer.HomeDir, ".claimcheck", "models",
             string.Join('_', Ner.ModelRepo.Split('/')));
         var cached = Directory.Exists(modelDir) && Directory.EnumerateFiles(modelDir).Any();
         return (cached ? "on (model cached)" : "on (model downloads on first use, ~110 MB)", cached);
@@ -152,7 +152,7 @@ public static class Status
             if (st is not null) found.Add($"{name}: {st}");
         }
         var openclaw = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".openclaw", "openclaw.json");
+            Sanitizer.HomeDir, ".openclaw", "openclaw.json");
         var st2 = CheckMcpJson(openclaw, ["mcp", "servers"], "claimcheck");
         if (st2 is not null) found.Add($"OpenClaw: {st2}");
         return found.ToArray();

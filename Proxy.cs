@@ -115,7 +115,15 @@ public static class Proxy
 
     public static async Task<int> Run(string[] args)
     {
-        var app = await StartAsync(args);
+        WebApplication app;
+        try { app = await StartAsync(args); }
+        catch (VaultCryptoException e)
+        {
+            // unreadable vault at startup — clean fatal for the console/service path;
+            // the tray catches StartAsync throws itself and shows the message in its tooltip
+            Console.Error.WriteLine($"claimcheck-proxy: FATAL — {e.Message}");
+            return 1;
+        }
         await app.WaitForShutdownAsync();
         return 0;
     }
@@ -148,8 +156,29 @@ public static class Proxy
         }
         if (_vaultFile.Exists)
         {
-            try { _vault = JsonSerializer.Deserialize<VaultData>(File.ReadAllText(_vaultFile.FullName)) ?? new VaultData(); }
-            catch { _vault = new VaultData(); }
+            // v0.9.0: read via VaultCrypto like every other vault reader (external audit
+            // 2026-10-30 finding). The proxy SAVES encrypted (DPAPI on Windows default,
+            // password mode with SANITIZE_VAULT_PASSWORD) but startup read with raw
+            // File.ReadAllText — fine on plaintext Linux, yet on Windows every restart
+            // threw in the catch, silently started EMPTY, and the next scrubbed request's
+            // SaveVault overwrote the real mapping (the exact path VaultCryptoException's
+            // contract forbids). Unreadable vault of any kind => refuse to start; unlike
+            // LoadVault's plaintext-corruption legacy fallback, malformed plaintext is
+            // fatal here too because the proxy re-saves on every scrub and would destroy
+            // whatever is left in the file.
+            if (!VaultCrypto.TryReadJson(_vaultFile.FullName, out var vjson, out var verr))
+                throw new VaultCryptoException(
+                    $"proxy vault {_vaultFile.FullName} cannot be read ({verr}). " +
+                    "Refusing to start with an empty vault — the next scrubbed request would overwrite the real mappings. " +
+                    $"Set {VaultCrypto.PasswordEnvVar} correctly, decrypt on the machine/user that encrypted it, or move the file aside.");
+            try { _vault = JsonSerializer.Deserialize<VaultData>(vjson) ?? new VaultData(); }
+            catch (JsonException e)
+            {
+                throw new VaultCryptoException(
+                    $"proxy vault {_vaultFile.FullName} is not valid vault JSON ({e.Message}). " +
+                    "Refusing to start with an empty vault — the next scrubbed request would overwrite the real mappings. " +
+                    "Move the file aside if truly abandoned.");
+            }
         }
         _patterns = Sanitizer.BuiltIn();
 

@@ -27,7 +27,7 @@ public static class Ner
         Environment.GetEnvironmentVariable("SANITIZE_NER_MODEL") ?? "Xenova/bert-base-NER";
 
     private static string ModelDir { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claimcheck", "models",
+        Sanitizer.HomeDir, ".claimcheck", "models",
         string.Join('_', ModelRepo.Split('/')));
 
     private const int MaxTokens = 510;

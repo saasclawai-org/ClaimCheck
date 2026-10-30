@@ -16,7 +16,7 @@ public static class CustomClients
     private static List<Regex>? _matchers;
 
     public static string DataPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        Sanitizer.HomeDir,
         ".sanitize-mcp", "custom_clients.json");
 
     public static int Count => _names?.Count ?? 0;

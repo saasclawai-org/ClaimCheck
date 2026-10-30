@@ -19,8 +19,33 @@ public static class Sanitizer
 {
     public const int MaxBytes = 2_000_000;
 
-    public static string VaultDir { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".sanitize-mcp", "vaults");
+    /// <summary>Resolved user home. HOME env first on Unix — GetFolderPath(UserProfile)
+    /// returned "" on Linux even with HOME set (found 2026-10-30: VaultDir silently went
+    /// cwd-relative and a test-run fixture vault nearly reached the public repo; GitHub
+    /// push protection caught the push). Fail-closed: no resolvable home = loud error,
+    /// never write data into an arbitrary working directory.</summary>
+    public static string HomeDir { get; } = ResolveHomeDir();
+
+    private static string ResolveHomeDir()
+    {
+        string? home;
+        if (OperatingSystem.IsWindows())
+        {
+            home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+        else
+        {
+            home = Environment.GetEnvironmentVariable("HOME");
+            if (string.IsNullOrWhiteSpace(home))
+                home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+        if (string.IsNullOrWhiteSpace(home))
+            throw new InvalidOperationException(
+                "Cannot resolve the user home directory: HOME is not set. Set HOME explicitly (systemd: Environment=HOME=/home/USER).");
+        return home;
+    }
+
+    public static string VaultDir { get; } = Path.Combine(HomeDir, ".sanitize-mcp", "vaults");
 
     /// <summary>Guards vault mutation (Placeholder minting) and file save/load.
     /// Vault ops are in-memory microseconds; one coarse lock keeps concurrent proxy requests safe.</summary>
@@ -362,7 +387,7 @@ public static class Sanitizer
     public static (string Text, string FullPath) LoadTextFile(string path)
     {
         if (path.StartsWith('~'))
-            path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            path = Path.Combine(HomeDir,
                 path[1..].TrimStart('/', '\\'));
         var p = Path.GetFullPath(path);
         CheckRoot(p);

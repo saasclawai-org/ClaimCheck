@@ -7,3 +7,4 @@ publish/
 __pycache__/
 *.pyc
 *.zip
+.sanitize-mcp/
