@@ -342,8 +342,13 @@ Employer: Jane Doe, FEIN [FEIN_1]   →   Employer: [PERSON_1], FEIN [FEIN_1]
 ```
 
 Enable with `SANITIZE_NER=1` in the environment of the ClaimCheck process. Tuning:
-`SANITIZE_NER_THRESHOLD` (default 0.5), `SANITIZE_NER_MODEL` (any HuggingFace
-token-classification ONNX repo). Model cache: `~/.claimcheck/models/`. Inference runs
+`SANITIZE_NER_THRESHOLD` (default 0.5), `SANITIZE_NER_TYPES` (comma-separated whitelist
+of PERSON/ORG/LOC/MISC — e.g. `SANITIZE_NER_TYPES=ORG,LOC` lets person-names pass through
+untouched; short model forms like PER are accepted; unset = all four; an entry naming
+nothing valid scrubs nothing, loudly; the scope also governs known-value re-ticketing —
+excluded types' known values pass through even when already in the vault), per-type thresholds `SANITIZE_NER_THRESHOLD_<TYPE>`
+(e.g. `SANITIZE_NER_THRESHOLD_PERSON=0.9` — falls back to the global), and `SANITIZE_NER_MODEL`
+(any HuggingFace token-classification ONNX repo). Model cache: `~/.claimcheck/models/`. Inference runs
 locally (~1–3 s per call); subword pieces of one entity are merged into a single ticket
 (the B-B quirk), and the config's label order is honored with a verified fallback.
 Model licenses vary on HuggingFace — check the card of whichever model you point at.

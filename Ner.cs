@@ -51,6 +51,48 @@ public static class Ner
         ["PER"] = "PERSON", ["ORG"] = "ORG", ["LOC"] = "LOC", ["MISC"] = "MISC",
     };
 
+    /// <summary>Entity types NER may scrub: PERSON, ORG, LOC, MISC. Set via
+    /// SANITIZE_NER_TYPES (comma-separated; short model forms like PER are accepted).
+    /// Unset = all four (backward compat). Provided but none valid = scrub NOTHING
+    /// (fail-closed: a typo must never silently widen the net back to everything).
+    /// Declared after TypeMap — static initializers run in textual order.</summary>
+    public static IReadOnlySet<string> Types { get; } = ParseTypes(Environment.GetEnvironmentVariable("SANITIZE_NER_TYPES"));
+
+    private static IReadOnlySet<string> ParseTypes(string? raw)
+    {
+        var all = new HashSet<string>(TypeMap.Values, StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(raw)) return all;
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tok in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (TypeMap.TryGetValue(tok, out var mapped)) set.Add(mapped);       // short form (PER)
+            else if (all.Contains(tok)) set.Add(tok.ToUpperInvariant());         // long form
+            else Console.Error.WriteLine($"claimcheck ner: unknown type '{tok}' in SANITIZE_NER_TYPES — ignored (valid: PERSON, ORG, LOC, MISC)");
+        }
+        if (set.Count == 0)
+        {
+            Console.Error.WriteLine("claimcheck ner: SANITIZE_NER_TYPES had no valid entries — NER scrubs NOTHING this run");
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+        return set;
+    }
+
+    /// <summary>Per-type confidence threshold: SANITIZE_NER_THRESHOLD_PERSON (etc.),
+    /// clamped like the global knob; falls back to SANITIZE_NER_THRESHOLD.</summary>
+    public static double ThresholdFor(string type)
+    {
+        var v = Environment.GetEnvironmentVariable("SANITIZE_NER_THRESHOLD_" + type.ToUpperInvariant());
+        return double.TryParse(v, out var t) ? Math.Clamp(t, 0.05, 0.99) : Threshold;
+    }
+
+    /// <summary>True when SANITIZE_NER_TYPES excludes this placeholder's NER-domain type
+    /// (PERSON/ORG/LOC/MISC) — known-value re-ticketing must then let those values pass
+    /// through instead of re-ticketing them behind the operator's back. Regex-tier ticket
+    /// types (FEIN, SSN, EMAIL, …) are never suppressed.</summary>
+    public static bool SuppressesKnownValue(string placeholderType) =>
+        TypeMap.Values.Contains(placeholderType, StringComparer.OrdinalIgnoreCase)
+        && !Types.Contains(placeholderType);
+
     // Default label order for the dslim/bert-base-NER lineage (Xenova export of it) —
     // verified against the model's config.json. Used only if config.json can't be fetched.
     private static readonly string[] DefaultLabels =
@@ -324,8 +366,10 @@ public static class Ner
             if (entStart is null || entType is null) return;
             var t = text[entStart.Value..entEnd.Value].Trim();
             var mean = entProbs.Count > 0 ? entProbs.Average() : 0;
-            var keep = t.Length >= 2 && entProbs.Count > 0 && mean >= Threshold && !t.All(char.IsDigit);
-            if (debug) Console.Error.WriteLine($"ner entity: '{t}' type={entType} mean={mean:F3} -> {(keep ? "KEEP" : "DROP")}");
+            var thr = ThresholdFor(TypeMap[entType]);
+            var keep = t.Length >= 2 && entProbs.Count > 0 && mean >= thr && !t.All(char.IsDigit)
+                       && Types.Contains(TypeMap[entType]);
+            if (debug) Console.Error.WriteLine($"ner entity: '{t}' type={entType} mean={mean:F3} thr={thr:F2} -> {(keep ? "KEEP" : "DROP")}");
             if (keep)
                 entities.Add((entStart.Value, entEnd.Value, entType, mean));
             entStart = entEnd = null; entType = null; entProbs.Clear();
@@ -338,6 +382,7 @@ public static class Ner
             var label = argmax[i] < _id2label.Length ? _id2label[argmax[i]] : "O";
             var type = label.Length > 2 ? label[2..] : "O"; // B-PER -> PER
             if (!TypeMap.ContainsKey(type)) { Close(); continue; }
+            if (!Types.Contains(TypeMap[type])) { Close(); continue; } // SANITIZE_NER_TYPES: type not enabled — never start/extend a span
             if (label.StartsWith("B-"))
             {
                 Close();

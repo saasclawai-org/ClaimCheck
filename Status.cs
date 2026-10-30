@@ -113,7 +113,12 @@ public static class Status
             Sanitizer.HomeDir, ".claimcheck", "models",
             string.Join('_', Ner.ModelRepo.Split('/')));
         var cached = Directory.Exists(modelDir) && Directory.EnumerateFiles(modelDir).Any();
-        return (cached ? "on (model cached)" : "on (model downloads on first use, ~110 MB)", cached);
+        var types = Ner.Types.Count == 0
+            ? "no types — nothing scrubbed (check SANITIZE_NER_TYPES)"
+            : string.Join("/", Ner.Types);
+        return (cached
+            ? $"on ({types} · model cached)"
+            : $"on ({types} · downloads on first use, ~110 MB)", cached);
     }
 
     private static string VaultSummary()

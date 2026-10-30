@@ -207,6 +207,7 @@ public static class Proxy
             nerFailed = Ner.Failed,
             nerFailReason = Ner.FailReason,
             nerProvider = Ner.Provider,
+            nerTypes = string.Join("/", Ner.Types),
             presidio = Presidio.Enabled ? ("on -> " + Presidio.Url) : "off",
             presidioFailures = Presidio.ConsecutiveFailures,
             presidioLastFailure = Presidio.LastFailure,

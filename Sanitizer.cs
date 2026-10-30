@@ -330,6 +330,16 @@ public static class Sanitizer
                 .Where(kv => kv.Value.Length >= 6 && !kv.Value.Contains('['))
                 .Where(kv => !kv.Value.Contains('=') && !kv.Value.Contains(':') &&
                              !kv.Value.Contains('"') && !kv.Value.Contains('\n'))
+                // v0.9.1: SANITIZE_NER_TYPES also scopes known-value re-ticketing — when a
+                // NER-domain type is excluded, its known values sail through instead of
+                // being re-ticketed behind the operator's back (a lane scoped to ORG,LOC
+                // must not keep re-ticketing PERSON names just because they're already in
+                // the vault). Regex-tier types are never suppressed.
+                .Where(kv =>
+                {
+                    var i = kv.Key.LastIndexOf('_');
+                    return i <= 0 || !Ner.SuppressesKnownValue(kv.Key[..i]);
+                })
                 .OrderByDescending(kv => kv.Value.Length)
                 .ToList();
         }

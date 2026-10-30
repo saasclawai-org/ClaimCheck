@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
@@ -15,6 +16,11 @@ HERE = Path(__file__).parent
 DLL = HERE / "bin" / "Release" / "net9.0" / "ClaimCheck.dll"
 
 async def main() -> None:
+    # fresh vault: the default session asserts mint order + finding types — a vault
+    # seeded by a previous run would re-ticket everything via ScrubKnownValues before
+    # NER runs (findings would come back empty; caught 2026-10-30). Model cache lives
+    # under ~/.claimcheck and is intentionally kept.
+    shutil.rmtree(Path.home() / ".sanitize-mcp", ignore_errors=True)
     env = dict(os.environ, SANITIZE_NER="1")
     params = StdioServerParameters(command="dotnet", args=[str(DLL)], cwd=str(HERE), env=env)
     async with stdio_client(params) as (r, w):
@@ -55,6 +61,25 @@ async def main() -> None:
             for f in res3["findings"]:
                 pass
             print("vault consistency OK — same entities reused their tickets")
+
+            # ---- v0.9.1: SANITIZE_NER_TYPES — entity-type whitelist
+            # Same fixture: with types=ORG,LOC the PERSON names must sail through while
+            # ORG/LOC still ticket. Separate session — env is read at type init.
+            tenv = dict(os.environ, SANITIZE_NER="1", SANITIZE_NER_TYPES="ORG,LOC")
+            tparams = StdioServerParameters(command="dotnet", args=[str(DLL)], cwd=str(HERE), env=tenv)
+            async with stdio_client(tparams) as (r, w):
+                async with ClientSession(r, w, read_timeout_seconds=600) as s:
+                    await s.initialize()
+                    tres = json.loads((await s.call_tool("sanitize_text", {"text": text})).content[0].text)
+                    tout = tres["sanitized"]
+                    assert "Jane" in tout and "Nadella" in tout, f"PERSON should pass through with SANITIZE_NER_TYPES=ORG,LOC: {tout!r}"
+                    assert "Microsoft" not in tout, f"ORG should still be ticketed: {tout!r}"
+                    assert "Seattle" not in tout, f"LOC should still be ticketed: {tout!r}"
+                    assert "[ORG_" in tout and "[LOC_" in tout, f"no ORG/LOC tickets in filtered mode: {tout!r}"
+                    assert not any(f["Type"] == "PERSON" for f in tres["findings"]), "PERSON finding leaked through the type filter"
+                    assert not re.search(r"\[[A-Z_]+_\d+\][A-Za-z0-9]", tout), "partial-word leak beside a placeholder (types mode)"
+                    print("types-filter OK — SANITIZE_NER_TYPES=ORG,LOC: PERSON passes, ORG/LOC ticketed")
+
             print("\nALL NER CHECKS PASSED:", res["summary"])
 
 asyncio.run(main())
