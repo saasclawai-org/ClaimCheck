@@ -40,7 +40,9 @@ feature.
 
 1. **Restore with the vault that scrubbed the content.** The mapping only exists in
    that file. The proxy restores with its own lane vault automatically; the CLI needs
-   the same vault passed with `--vault`.
+   the same vault passed with `--vault` (v0.9.1: `ClaimCheck restore - --vault <path>`
+   pins exactly one vault; the default multi-vault sweep restores in sorted order and
+   warns when a ticket being restored exists in several vaults with different values).
 2. **Want cross-lane consistency?** Point lanes at the same `--vault` file — same
    value → same ticket in both. Trade-off: shared blast radius. Reasonable for two
    personal lanes; keep fleets separate.

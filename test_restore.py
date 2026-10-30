@@ -73,6 +73,49 @@ def main():
     if not disclosure_seen:
         fails.append("disclosure: no bare-form hint on plain restore (expected for bare-ticket inputs)")
 
+    # ---- v0.9.1: --vault pinning + sweep collision warning (audit finding #3)
+    # second vault sorts AFTER proxy.json (zz_…) so the sweep's first-vault-wins is deterministic
+    other = {
+        "map": {"FEIN_1": "98-7654321", "SSN_1": "123-45-6789"},
+        "reverse": {"FEIN_1|98-7654321": "[FEIN_1]", "SSN_1|123-45-6789": "[SSN_1]"},
+        "counts": {"FEIN": 1, "SSN": 1},
+    }
+    json.dump(other, open(os.path.join(vdir, "zz_other.json"), "w"))
+
+    def restore_argv(argv, text):
+        p = subprocess.run(["dotnet", DLL, "restore"] + argv, input=text,
+                           capture_output=True, text=True, env=env)
+        return p.stdout.rstrip("\n"), p.stderr, p.returncode
+
+    vmain = os.path.join(vdir, "proxy.json")
+    vother = os.path.join(vdir, "zz_other.json")
+
+    out_main, _, _ = restore_argv(["-", "--vault", vmain], "[FEIN_1]")
+    if out_main != "84-3920175":
+        fails.append(f"--vault main: [FEIN_1] -> {out_main!r}, want 84-3920175")
+    out_o, _, _ = restore_argv(["-", "--vault", vother], "[FEIN_1]")
+    if out_o != "98-7654321":
+        fails.append(f"--vault other: [FEIN_1] -> {out_o!r}, want 98-7654321")
+
+    # sweep with a real collision: deterministic first-vault-wins + loud warning
+    out_sweep, err_sweep, _ = restore_argv(["-"], "[FEIN_1]")
+    if out_sweep != "84-3920175":
+        fails.append(f"sweep collision: [FEIN_1] -> {out_sweep!r}, want proxy.json's 84-3920175 (sorted first)")
+    if "multiple vaults" not in err_sweep or "--vault" not in err_sweep:
+        fails.append(f"sweep collision: no warning on stderr: {err_sweep[-300:]!r}")
+
+    # same-value duplicates must NOT warn
+    out_same, err_same, _ = restore_argv(["-"], "[SSN_1]")
+    if out_same != "123-45-6789":
+        fails.append(f"sweep same-value: [SSN_1] -> {out_same!r}")
+    if "multiple vaults" in err_same:
+        fails.append("sweep same-value: false collision warning")
+
+    # pinned vault that doesn't exist -> fatal
+    _, _, rc_missing = restore_argv(["-", "--vault", os.path.join(vdir, "nope.json")], "x")
+    if rc_missing == 0:
+        fails.append("--vault nonexistent: should exit non-zero")
+
     print(f"test_restore: {len(CASES) - len(fails)}/{len(CASES)} variation groups passed")
     if fails:
         print("FAILED:", *fails, sep="\n  ")

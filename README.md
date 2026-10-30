@@ -12,8 +12,9 @@ the real values on the way back. One self-contained binary, three ways to run it
 
 - **MCP server** — for Cline, Cursor, or any MCP client: the model reads files *through it*
   and receives scrubbed content with stable placeholders
-- **LLM proxy** — point any OpenAI-compatible client at it: every request is scrubbed on the
-  wire, every response restored before your editor sees it
+- **LLM proxy** — point any OpenAI-compatible client at it: every chat-completions request is
+  scrubbed on the wire, every response restored before your editor sees it (other endpoints
+  pass through untouched; binds loopback only by default — see Scrub coverage below)
 - **CLI** — one-line scrub/restore from any script or agent
 
 Reversible where redaction isn't. Local where cloud DLP isn't. Zero cooperation from the AI
@@ -329,6 +330,7 @@ Restore locally whenever you need real values back:
 
 ```bash
 ClaimCheck restore <file->        # or read from stdin with -
+ClaimCheck restore - --vault <path>   # pin exactly one vault (default sweep: sorted order, warns on same-ticket/different-value conflicts)
 ```
 
 ## NER tier — free-text names, orgs, locations (opt-in)
