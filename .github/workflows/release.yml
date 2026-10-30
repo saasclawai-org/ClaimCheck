@@ -34,7 +34,10 @@ jobs:
           - { os: ubuntu-latest,    rid: linux-x64 }
           - { os: ubuntu-24.04-arm, rid: linux-arm64 }
           - { os: macos-latest,     rid: osx-arm64 }
-          - { os: macos-13,         rid: osx-x64 }
+          # osx-x64 (Intel) dropped for v0.9.0 (2026-10-30): macos-13 runners starved
+          # and blocked the whole matrix on v0.8.9 — the release never assembled
+          # unattended. Nobody in the fleet runs Intel Macs. Restore only with a real
+          # consumer, or better: cross-compile osx-x64 on ubuntu and validate it first.
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
