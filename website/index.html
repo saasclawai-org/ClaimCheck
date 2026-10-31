@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ClaimCheck — local-first PII pseudonymization for AI agents</title>
-<meta name="description" content="ClaimCheck masks secrets and PII before they reach the model — and restores them after the answer. Local-only, reversible via a local vault, no telemetry. MIT-0.">
+<meta name="description" content="ClaimCheck swaps secrets and PII for stable claim tickets before they reach the model — and restores the real values after the answer. Local-only, reversible via a local vault, no telemetry. MIT-0.">
 <link rel="canonical" href="https://claimcheck.saasclaw.ai/">
 <meta property="og:title" content="ClaimCheck — local-first PII pseudonymization for AI agents">
-<meta property="og:description" content="Mask secrets and PII before they reach the model. Reversible via a local vault. No telemetry, no accounts, nothing leaves the machine.">
+<meta property="og:description" content="ClaimCheck swaps secrets and PII for stable claim tickets before they reach the model — and restores the real values after. Local vault, no telemetry, no accounts, nothing leaves the machine.">
 <meta property="og:url" content="https://claimcheck.saasclaw.ai/">
 <meta property="og:type" content="website">
 <style>
@@ -48,9 +48,10 @@
     <nav>
       <a href="#install">Install</a>
       <a href="#how">How it works</a>
+      <a href="#v09">New in v0.9</a>
       <a href="#catches">What it catches</a>
       <a href="#trust">Trust</a>
-      <a href="/field-test.html">Field test</a><a href="/standards.html">Standards</a>
+      <a href="/field-test.html">Field test</a><a href="/ner-large-context-windows.html">NER limits</a><a href="/standards.html">Standards</a><a href="/presidio.html">vs Presidio</a>
       <a href="https://github.com/saasclawai-org/ClaimCheck">GitHub</a>
     </nav>
   </div>
@@ -58,9 +59,9 @@
 <main class="wrap">
   <section class="hero">
     <h1>Your AI assistant doesn't need your client's <span class="ph">[FEIN_1]</span></h1>
-    <p class="sub">ClaimCheck masks secrets and PII before they reach the model — and restores them after the answer. Local-only. Reversible. No telemetry.</p>
+    <p class="sub">AI tools read your real files and ship them to the cloud. ClaimCheck swaps every secret for a stable claim ticket before it leaves your machine — and puts the real values back on the way home. Reversible where redaction isn't. Local where cloud DLP isn't. Zero cooperation from the tool.</p>
     <div class="install" id="install">irm https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.ps1 | iex</div>
-    <p class="hint">Windows one-liner · macOS/Linux: <code>dotnet publish</code> from source · also runs as MCP tools and a scrubbing proxy</p>
+    <p class="hint">Windows (also updates in place) · Linux x64/ARM64: <code>curl -fsSL https://raw.githubusercontent.com/saasclawai-org/ClaimCheck/main/tools/install.sh | bash</code> · Appliances/Pi: <code>claimcheck-upgrade</code> · also runs as MCP tools and a scrubbing proxy</p>
     <div class="cta">
       <a class="btn" href="https://github.com/saasclawai-org/ClaimCheck">GitHub</a>
       <a class="btn" href="https://clawhub.ai/normandmickey/skills/claimcheck">ClawHub</a>
@@ -152,8 +153,8 @@
 
   <section id="catches">
     <h2>What it catches</h2>
-    <p>22 recognizer types, deterministic, validated, no cloud calls: SSNs · FEINs/EINs · emails · API keys (OpenAI, AWS, Slack, GitHub) · JWTs · passwords · PEM private keys · card numbers + CVV + expiry · IBAN · bank routing · bank accounts · phone numbers · IP addresses · street addresses · dates of birth · passports · driver's licenses · medical licenses · insurance member IDs.</p>
-    <p>An opt-in NER tier adds free-text names, organizations and locations via a local ONNX model — cached once, no uploads, no API calls.</p>
+    <p>26 recognizer types, deterministic, validated, no cloud calls: SSNs · FEINs/EINs · emails · account numbers · API keys (OpenAI, AWS, Slack, GitHub) · JWTs · passwords and labeled secrets (JSON/YAML/.env aware) · PEM private keys · encoded base64/hex dumps · card numbers + CVV + expiry · IBAN · bank routing · phone numbers · IP addresses · street addresses · dates of birth · passports · driver's licenses · medical licenses · insurance member IDs · IMEI · URL credentials.</p>
+    <p>An opt-in NER tier adds free-text names, organizations and locations via a local ONNX model — cached once, no uploads, no API calls — with a type whitelist (<code>SANITIZE_NER_TYPES</code>) and global or per-type confidence floors. Domain-specific values (customer IDs, member codes) drop in via a <code>.sanitize-patterns.json</code> file — same ticket contract, your regexes.</p>
   </section>
 
   <section id="trust">
@@ -166,9 +167,22 @@
     </ul>
   </section>
 
+  <section id="v09">
+    <h2>New in v0.9</h2>
+    <ul>
+      <li><strong>Realistic mode</strong> (<code>SANITIZE_FAKE_DATA=1</code>). Instead of opaque tickets, the model sees deterministic, per-type fakes — <code>9XX-00-XXXX</code> SSNs, Luhn-valid cards, <code>@claimcheck.invalid</code> addresses — and restore swaps fakes back to real values. Same round trip, zero formatting drift.</li>
+      <li><strong>Dates off by default</strong> (v0.9.2). Dates are operational context — ticketing them broke "which deadline is earlier?" reasoning. Opt back in with <code>SANITIZE_DATES=1</code>; old vaults still restore.</li>
+      <li><strong>Vault tools.</strong> <code>vault-list</code> inspects every vault on the machine (full or <code>--summary</code>), <code>restore --vault</code> pins exactly one vault, <code>restore --bare</code> strips ticket decorations — and the default sweep now warns on same-ticket/different-value conflicts instead of guessing.</li>
+      <li><strong>Audit trail</strong> (<code>SANITIZE_PROXY_LOG=1</code>). Proxy logs post-scrub request bodies as JSON lines — tickets only, never raw values. Compliance sees the shape of the traffic; the vault never joins the log.</li>
+      <li><strong>Hardened edges.</strong> Encrypted vaults at rest (DPAPI on Windows, portable AES-GCM via <code>SANITIZE_VAULT_PASSWORD</code>), path allowlists (<code>SANITIZE_ROOTS</code>), fail-closed HOME resolution, and an optional Presidio analyzer as a fourth, tier-separated detector.</li>
+      <li><strong>One-line installs everywhere.</strong> Windows PowerShell, Linux x64/ARM64 per-user, and the <code>claimcheck-upgrade</code> appliance path for Raspberry Pi / systemd boxes.</li>
+    </ul>
+    <p>The full knob-by-knob reference lives in <a href="https://github.com/saasclawai-org/ClaimCheck/blob/main/docs/CONFIGURATION.md">docs/CONFIGURATION.md</a>.</p>
+  </section>
+
   <section id="roadmap">
     <h2>Roadmap</h2>
-    <p><strong>Shipped:</strong> scrubbing proxy · NER tier · MCP tools · atomic vaults · Windows installer · field-proven on three deployments.<br>
+    <p><strong>Shipped:</strong> scrubbing proxy · NER tier with per-type knobs · realistic mode · audit body-log · MCP tools · atomic encrypted vaults · vault-list/restore tooling · one-line installers on all three platforms · field-proven on live deployments.<br>
     <strong>Next:</strong> prompt-injection classifier tier · tool-call guard · team audit trail (Pro).</p>
   </section>
 
