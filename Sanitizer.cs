@@ -163,6 +163,7 @@ public static class Sanitizer
     {
         var patterns = BuiltInPatterns.ToList();
         if (DatesEnabled) patterns.Add(DatePattern);
+        Injection.Append(patterns);
         return patterns;
     }
 
@@ -229,6 +230,7 @@ public static class Sanitizer
     {
         var list = BuiltInPatterns.ToList();
         if (DatesEnabled) list.Add(DatePattern);
+        Injection.Append(list);
         var f = Path.Combine(root.FullName, ".sanitize-patterns.json");
         if (File.Exists(f))
         {
