@@ -381,16 +381,31 @@ public static class Sanitizer
         for (int i = 0; i < lines.Length; i++)
         {
             var line = lines[i];
+            // Tier-0 (v0.9.3): bidi control chars are flagged, never rewritten — classic
+            // display-reorder smuggle. See docs/INJECTION-TIER.md.
+            if (line.AsEnumerable().Any(Normalize.IsBidiControl))
+                findings.Add(new Finding(i + 1, "BIDI", "[BIDI]"));
             foreach (var (type, rx, validator) in patterns)
             {
-                line = rx.Replace(line, m =>
+                // Match on the normalized view (zero-width stripped, NFKC + homoglyphs folded);
+                // extract the byte-exact ORIGINAL span into the vault so restore is unchanged.
+                var (norm, map) = Normalize.ForMatch(line);
+                var matches = rx.Matches(norm);
+                if (matches.Count == 0) continue;
+                var sb = new System.Text.StringBuilder(line);
+                foreach (var m in matches.Cast<Match>().Reverse())
                 {
-                    var val = m.Value;
-                    if (validator is not null && !validator(val)) return val;
+                    int ns = m.Index, ne = m.Index + m.Length - 1;
+                    if (ns >= map.Length || ne >= map.Length) continue;
+                    int os = map[ns], oe = map[ne] + 1;
+                    if (os < 0 || oe <= os) continue;
+                    var val = line.Substring(os, oe - os);
+                    if (validator is not null && !validator(val)) continue;
                     var ph = Placeholder(vault, type, val);
                     findings.Add(new Finding(i + 1, type, ph));
-                    return "[" + ph + "]";
-                });
+                    sb.Remove(os, oe - os).Insert(os, "[" + ph + "]");
+                }
+                line = sb.ToString();
             }
             result.Add(line);
         }
