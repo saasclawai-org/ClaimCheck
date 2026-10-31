@@ -53,6 +53,7 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add("Open vault folder", null, (_, _) => OpenVault());
         menu.Items.Add(_nerItem);
         menu.Items.Add(_presidioItem);
+        menu.Items.Add("Settings…", null, (_, _) => ShowSettings());
         menu.Items.Add("Provider setup…", null, (_, _) => new ProviderForm(_port).Show());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Restart proxy", null, (_, _) => _ = Restart());
@@ -271,6 +272,12 @@ internal sealed class TrayApp : ApplicationContext
         catch { return false; }
     }
 
+    private void ShowSettings()
+    {
+        using var f = new SettingsForm();
+        f.ShowDialog();
+    }
+
     private void OpenVault()
     {
         try
@@ -410,6 +417,107 @@ internal sealed class StatusForm : Form
             try { path = new Uri(i.Upstream).AbsolutePath.TrimEnd('/'); } catch { path = ""; }
         }
         return $"http://[IP_8]:{i.ProxyPort}{path}";
+    }
+}
+
+internal sealed class SettingsForm : Form
+{
+    private readonly CheckBox _dates;
+    private readonly CheckBox _injection;
+    private readonly CheckBox _audit;
+    private readonly TextBox _nerTypes;
+    private readonly TextBox _roots;
+
+    public SettingsForm()
+    {
+        Text = "ClaimCheck — scrub settings (proxy)";
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        StartPosition = FormStartPosition.CenterScreen;
+        ClientSize = new Size(600, 330);
+
+        _dates = new CheckBox
+        {
+            Text = "Ticket dates  (SANITIZE_DATES) — off by default: dates are operational context",
+            Left = 12, Top = 14, Width = 570,
+            Checked = TrayConfig.KnobOn("SANITIZE_DATES"),
+        };
+        _injection = new CheckBox
+        {
+            Text = "Prompt-injection patterns  (SANITIZE_INJECTION_PATTERNS)",
+            Left = 12, Top = 40, Width = 570,
+            Checked = TrayConfig.KnobOn("SANITIZE_INJECTION_PATTERNS"),
+        };
+        _audit = new CheckBox
+        {
+            Text = "Audit log: post-scrub bodies as JSON lines  (SANITIZE_PROXY_LOG) — tickets only",
+            Left = 12, Top = 66, Width = 570,
+            Checked = TrayConfig.KnobOn("SANITIZE_PROXY_LOG"),
+        };
+
+        var nerLabel = new Label
+        {
+            Text = "NER types filter  (SANITIZE_NER_TYPES) — comma list, blank = all four:",
+            Left = 12, Top = 100, Width = 570, AutoSize = false, Height = 20,
+        };
+        _nerTypes = new TextBox
+        {
+            Left = 12, Top = 122, Width = 300,
+            Text = TrayConfig.GetKnob("SANITIZE_NER_TYPES") ?? "",
+        };
+
+        var rootsLabel = new Label
+        {
+            Text = "Path allowlist  (SANITIZE_ROOTS) — " + Path.PathSeparator + "-separated, blank = unrestricted:",
+            Left = 12, Top = 158, Width = 570, AutoSize = false, Height = 20,
+        };
+        _roots = new TextBox
+        {
+            Left = 12, Top = 180, Width = 570,
+            Text = TrayConfig.GetKnob("SANITIZE_ROOTS") ?? "",
+        };
+
+        var note = new Label
+        {
+            Text = "Settings apply to the next scrubbed request — no restart needed.\n" +
+                   "NER and Presidio toggles live in the tray menu.",
+            Left = 12, Top = 216, Width = 570, Height = 40,
+            ForeColor = SystemColors.GrayText,
+        };
+
+        var save = new Button { Text = "Save", Left = 12, Top = 262, Width = 100 };
+        save.Click += (_, _) => Save();
+        var cancel = new Button { Text = "Cancel", Left = 120, Top = 262, Width = 100, DialogResult = DialogResult.Cancel };
+        CancelButton = cancel;
+
+        Controls.AddRange(new Control[] { _dates, _injection, _audit, nerLabel, _nerTypes, rootsLabel, _roots, note, save, cancel });
+        AcceptButton = save;
+    }
+
+    private void Save()
+    {
+        var enablingInjection = _injection.Checked && !TrayConfig.KnobOn("SANITIZE_INJECTION_PATTERNS");
+        if (enablingInjection)
+        {
+            if (MessageBox.Show(
+                    "Enable prompt-injection patterns?\n\nFiles in this repo that quote attack strings " +
+                    "(security tests, prompt-engineering docs) will be ticketed too. " +
+                    "Use SANITIZE_ROOTS to scope the lane if needed.",
+                    "ClaimCheck injection patterns", MessageBoxButtons.OKCancel, MessageBoxIcon.Information)
+                != DialogResult.OK)
+            {
+                _injection.Checked = false;
+                return;
+            }
+        }
+
+        TrayConfig.SetKnob("SANITIZE_DATES", _dates.Checked ? "1" : null);
+        TrayConfig.SetKnob("SANITIZE_INJECTION_PATTERNS", _injection.Checked ? "1" : null);
+        TrayConfig.SetKnob("SANITIZE_PROXY_LOG", _audit.Checked ? "1" : null);
+        TrayConfig.SetKnob("SANITIZE_NER_TYPES", _nerTypes.Text.Trim());
+        TrayConfig.SetKnob("SANITIZE_ROOTS", _roots.Text.Trim());
+        Close();
     }
 }
 

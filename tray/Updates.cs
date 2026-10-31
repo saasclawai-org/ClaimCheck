@@ -1,8 +1,10 @@
 using System.Text.Json.Nodes;
 
-/// <summary>Tray-owned settings (~/.claimcheck/tray.json). Currently: proxy NER + Presidio
-/// toggles. Applied to this process's environment BEFORE the proxy starts; Ner.Enabled and
-/// Presidio.Enabled read their env live, so toggling takes effect without a proxy restart.</summary>
+/// <summary>Tray-owned settings (~/.claimcheck/tray.json). NER + Presidio toggles plus a
+/// generic knob store for the env-var settings surfaced in Settings… (dates, injection
+/// patterns, audit log, NER type filter, path allowlist). Applied to this process's
+/// environment BEFORE the proxy starts; every scrubbed knob reads its env live per call,
+/// so toggling takes effect on the next request without a proxy restart.</summary>
 internal static class TrayConfig
 {
     private static readonly string ConfigPath = System.IO.Path.Combine(
@@ -11,6 +13,20 @@ internal static class TrayConfig
     public static bool NerEnabled { get; private set; }
     public static bool PresidioEnabled { get; private set; } = true;
     public static string? PresidioUrl { get; private set; }
+    private static readonly Dictionary<string, string> Knobs = new();
+
+    public static string? GetKnob(string key) => Knobs.TryGetValue(key, out var v) ? v : null;
+    public static bool KnobOn(string key) => GetKnob(key) is "1" or "on" or "true";
+
+    /// <summary>Set (or clear with null/empty) a knob env var and persist. Live-read by the
+    /// scrub engine, so the next request already uses the new value.</summary>
+    public static void SetKnob(string key, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) Knobs.Remove(key);
+        else Knobs[key] = value;
+        Apply();
+        Persist();
+    }
 
     public static void Load()
     {
@@ -23,6 +39,10 @@ internal static class TrayConfig
                     NerEnabled = b;
                 if (node?["presidioEnabled"] is JsonValue pv && pv.TryGetValue<bool>(out var pb))
                     PresidioEnabled = pb;
+                if (node?["knobs"] is JsonObject ks)
+                    foreach (var (k, val) in ks)
+                        if (val is JsonValue kv && kv.TryGetValue<string>(out var sv) && !string.IsNullOrWhiteSpace(sv))
+                            Knobs[k] = sv;
             }
         }
         catch { /* corrupt config = defaults */ }
@@ -49,9 +69,15 @@ internal static class TrayConfig
         try
         {
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(ConfigPath)!);
-            File.WriteAllText(ConfigPath,
-                "{\"nerEnabled\":" + (NerEnabled ? "true" : "false")
-                + ",\"presidioEnabled\":" + (PresidioEnabled ? "true" : "false") + "}\n");
+            var knobs = new JsonObject();
+            foreach (var (k, val) in Knobs) knobs[k] = val;
+            var node = new JsonObject
+            {
+                ["nerEnabled"] = NerEnabled,
+                ["presidioEnabled"] = PresidioEnabled,
+                ["knobs"] = knobs,
+            };
+            File.WriteAllText(ConfigPath, node.ToJsonString() + "\n");
         }
         catch { /* best effort */ }
     }
@@ -65,6 +91,8 @@ internal static class TrayConfig
         // we only remember it for the lifetime of the tray.
         Environment.SetEnvironmentVariable("SANITIZE_PRESIDIO_URL",
             PresidioEnabled ? PresidioUrl : null);
+        foreach (var (k, val) in Knobs)
+            Environment.SetEnvironmentVariable(k, val);
     }
 }
 
