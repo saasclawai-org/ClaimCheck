@@ -30,6 +30,13 @@ public static class Proxy
 
     private static VaultData _vault = new();
     private static FileInfo _vaultFile = null!;
+
+    // v0.9.6 multitenant lanes (SANITIZE_TENANT_HEADER, e.g. "X-ClaimCheck-Tenant"):
+    // every chat-completions request carries a tenant id; each tenant gets its own vault
+    // (tenant-<sha1-12>.json) and responses are NEVER restored — tickets stay tickets, so
+    // tenant PII never reassembles server-side. Missing/invalid header fails closed (400).
+    private static string? _tenantHeader;
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, VaultData> _tenantVaults = new();
     private static HttpClient _http = null!;
     private static string _upstream = "";
     private static long _totalRequests;
@@ -222,7 +229,10 @@ public static class Proxy
                 await PassThrough(ctx, path);
         });
 
-        Console.Error.WriteLine($"sanitize proxy: http://{host}:{port} -> {_upstream} (scrub outbound, restore inbound; vault: {_vaultFile.FullName})");
+        _tenantHeader = Environment.GetEnvironmentVariable("SANITIZE_TENANT_HEADER");
+        Console.Error.WriteLine(_tenantHeader is null
+            ? $"sanitize proxy: http://{host}:{port} -> {_upstream} (scrub outbound, restore inbound; vault: {_vaultFile.FullName})"
+            : $"sanitize proxy: http://{host}:{port} -> {_upstream} (MULTITENANT: tenant header '{_tenantHeader}', per-tenant vaults, restore DISABLED)");
         Presidio.WarmUp();
         await app.StartAsync();
         return app;
@@ -246,13 +256,28 @@ public static class Proxy
             return;
         }
 
+        VaultData vault = _vault;
+        FileInfo vaultFile = _vaultFile;
+        if (_tenantHeader is not null)
+        {
+            // tenant resolution happens BEFORE the fail-closed scrub gate: a missing/invalid
+            // tenant id is a client error (400), not a scrub failure (503). An unreadable
+            // encrypted tenant vault still throws -> 503, per the never-scrub-on-empty-vault rule.
+            (vault, vaultFile) = ResolveTenant(ctx, path, sw);
+            if (vault is null)
+            {
+                await ctx.Response.WriteAsync((string?)ctx.Items["ccError"] ?? "claimcheck: invalid tenant");
+                return;
+            }
+        }
+
         try
         {
             if (root is not null)
             {
-                ScrubMessages(root, _vault);
+                ScrubMessages(root, vault);
                 Interlocked.Increment(ref _scrubbedRequests);
-                Sanitizer.SaveVault(_vaultFile, _vault);
+                Sanitizer.SaveVault(vaultFile, vault);
             }
         }
         catch (Exception e)
@@ -301,12 +326,70 @@ public static class Proxy
         ctx.Response.ContentType = ctype;
         var media = resp.Content.Headers.ContentType?.MediaType ?? "";
 
+        if (_tenantHeader is not null)
+        {
+            // multitenant no-restore lane: responses cross back untouched — tickets stay
+            // tickets; no tenant's PII ever reassembles on this server.
+            if (media.Contains("event-stream"))
+                await (await resp.Content.ReadAsStreamAsync(ctx.RequestAborted))
+                    .CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
+            else
+            {
+                var passthrough = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
+                await ctx.Response.WriteAsync(passthrough, ctx.RequestAborted);
+            }
+            return;
+        }
         if (media.Contains("event-stream"))
             await RestoreSse(await resp.Content.ReadAsStreamAsync(ctx.RequestAborted), ctx.Response, ctx.RequestAborted, _vault);
         else
         {
             var text = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
             await ctx.Response.WriteAsync(RestoreText(text, _vault), ctx.RequestAborted);
+        }
+    }
+
+    /// <summary>Multitenant lane: read + validate the tenant header, route to that tenant's
+    /// vault (cached, file-backed). Returns (null, null) after writing a 400 when the
+    /// tenant id is missing/invalid — an unattributed request has no vault, and guessing
+    /// one would risk cross-tenant leaks. A vault file that exists but cannot be read
+    /// throws — the caller's fail-closed handler turns that into 503 rather than ever
+    /// scrubbing with an empty vault.</summary>
+    private static (VaultData? Vault, FileInfo? File) ResolveTenant(HttpContext ctx, string path,
+        System.Diagnostics.Stopwatch sw)
+    {
+        if (!ctx.Request.Headers.TryGetValue(_tenantHeader!, out var tv) || string.IsNullOrWhiteSpace(tv))
+        {
+            ctx.Response.StatusCode = 400;
+            LogReq(ctx, path, 400, sw.ElapsedMilliseconds);
+            ctx.Items["ccError"] = $"claimcheck: missing {_tenantHeader} header (multitenant lane)";
+            return (null, null);
+        }
+        var tid = tv.ToString().Trim();
+        if (tid.Length is < 1 or > 64 || tid.Any(c => !(char.IsLetterOrDigit(c) || c == '-' || c == '_')))
+        {
+            ctx.Response.StatusCode = 400;
+            LogReq(ctx, path, 400, sw.ElapsedMilliseconds);
+            ctx.Items["ccError"] = "claimcheck: invalid tenant id (A-Z a-z 0-9 - _ only, <= 64 chars)";
+            return (null, null);
+        }
+        var key = Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(tid))).ToLowerInvariant()[..12];
+        var file = new FileInfo(Path.Combine(Sanitizer.VaultDir, $"tenant-{key}.json"));
+        var vault = _tenantVaults.GetOrAdd(key, _ => LoadTenantVault(file, tid));
+        return (vault, file);
+    }
+
+    private static VaultData LoadTenantVault(FileInfo file, string tid)
+    {
+        Directory.CreateDirectory(Sanitizer.VaultDir);
+        if (!file.Exists) return new VaultData();
+        if (!VaultCrypto.TryReadJson(file.FullName, out var vjson, out var verr))
+            throw new VaultCryptoException(
+                $"tenant vault {file.FullName} (tenant {tid[..4]}…) cannot be read ({verr}). Refusing to scrub with an empty vault.");
+        try { return JsonSerializer.Deserialize<VaultData>(vjson) ?? new VaultData(); }
+        catch (Exception e)
+        {
+            throw new VaultCryptoException($"tenant vault {file.FullName} is not valid vault JSON ({e.Message}).");
         }
     }
 
