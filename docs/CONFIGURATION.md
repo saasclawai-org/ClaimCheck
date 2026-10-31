@@ -12,6 +12,7 @@ tool itself makes is the optional NER model download and the optional Presidio b
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `SANITIZE_TENANT_HEADER` | unset | Multitenant lanes (e.g. `X-ClaimCheck-Tenant`): each chat-completions request must carry the header; per-tenant vaults (`tenant-<sha1-12>.json`) scrub independently; **restore is disabled** — responses cross back untouched so tenant PII never reassembles server-side. Missing/invalid tenant id fails closed (400). For SaaS deployments (Ragbee.ai pattern). See test_proxy_multitenant.py. |
 | `SANITIZE_INJECTION_PATTERNS` | off | `=1` enables the Tier-1 deterministic injection-pattern set (instruction override, prompt extraction, persona jailbreaks, fake chat-template tokens, secret-exfil directives, tool-call hijacks) — findings ticketed as `INJECTION_*`, riding the same view-matching + vault machinery as every other tier. Default off: security test files and prompt-engineering docs would otherwise self-ticket. See docs/INJECTION-TIER.md. |
 | `SANITIZE_DATES` | off (v0.9.2) | Dates are operational context (deadlines, notice dates) — ticketing them made the model unable to answer "which deadline is earlier?" Set `=1` when your workflow treats dates as sensitive. Existing `DATE_*` tickets in old vaults still restore. |
 | `SANITIZE_FAIL_CLOSED` | **on** | On failures the gate refuses (clean 502s / hard errors) rather than passing content through. `=0` disables — don't. |
