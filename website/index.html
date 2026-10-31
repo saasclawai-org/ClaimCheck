@@ -163,6 +163,7 @@
       <li><strong>No account. No API key. No telemetry.</strong> Nothing phones home — ever.</li>
       <li><strong>Fail-closed.</strong> A scrub failure holds the request instead of forwarding raw text.</li>
       <li><strong>Open source.</strong> MIT-0. The whole engine is on GitHub — audit it, fork it, self-host it.</li>
+      <li><strong>Stacks, doesn't fight.</strong> Repo scanning (Semgrep), tool-lane firewalls (Sunglasses), model-hop scrubbing (ClaimCheck) are different enforcement points on the same wire — run them together. ClaimCheck is the layer that keeps the session working instead of stopping it.</li>
       <li><strong>Honest limits.</strong> ClaimCheck protects the model-provider hop. Whatever reached a chat surface before the sanitizer ran was already seen — the docs state this plainly instead of hiding it.</li>
     </ul>
   </section>
