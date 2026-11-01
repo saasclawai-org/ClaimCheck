@@ -227,6 +227,7 @@ public static class Proxy
             ner = Ner.Enabled,
             failClosed = FailClosed,
             passthroughAllowlist = PassthroughAll ? "*" : string.Join(",", PassthroughAllowlist),
+            exemptTypes = string.Join(",", Sanitizer.ExemptTypes),
             nerFailed = Ner.Failed,
             nerFailReason = Ner.FailReason,
             nerProvider = Ner.Provider,

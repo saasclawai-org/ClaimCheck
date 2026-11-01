@@ -159,11 +159,27 @@ public static class Sanitizer
     public static bool DatesEnabled =>
         Environment.GetEnvironmentVariable("SANITIZE_DATES") is "1" or "on" or "true";
 
+    // v0.9.9 per-type exemptions — SANITIZE_EXEMPT_TYPES: comma-separated type names whose
+    // recognizers are skipped entirely at scrub time (values pass RAW, no tickets minted,
+    // nothing enters the vault — in multitenant/no-restore mode that means the model can
+    // speak them). Motivated by a real support-QA deployment: the tenant's own office
+    // phone/billing email must be speakable, but with restore disabled the scrub gate
+    // turned every correct answer into [PHONE_1]/[EMAIL_1]. Deliberate, opt-in,
+    // documentation-level trade-off: default empty = every type scrubbed, unchanged.
+    // Names are case-insensitive and match the ticket type (FEIN, SSN, EMAIL, PHONE, ...).
+    public static readonly string[] ExemptTypes =
+        (Environment.GetEnvironmentVariable("SANITIZE_EXEMPT_TYPES") ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(t => t.ToUpperInvariant())
+            .ToArray();
+
     public static List<(string Type, Regex Rx, Func<string, bool>?)> BuiltIn()
     {
         var patterns = BuiltInPatterns.ToList();
         if (DatesEnabled) patterns.Add(DatePattern);
         Injection.Append(patterns);
+        if (ExemptTypes.Length > 0)
+            patterns = patterns.Where(p => !ExemptTypes.Contains(p.Type)).ToList();
         return patterns;
     }
 
