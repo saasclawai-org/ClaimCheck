@@ -267,6 +267,14 @@ public static class Sanitizer
                 Console.Error.WriteLine($"sanitize: ignoring bad .sanitize-patterns.json: {e.Message}");
             }
         }
+        // v0.9.9.1: apply SANITIZE_EXEMPT_TYPES here too — PatternsFor feeds the CLI/MCP
+        // path (sanitize-text/sanitize-file), while BuiltIn() feeds the proxy. The filter
+        // originally lived only in BuiltIn(), so exemptions silently didn't apply to CLI
+        // scrubs (ragbee field report 2026-11-01: identical output with/without the env).
+        // Filter runs AFTER custom patterns load so per-repo .sanitize-patterns.json
+        // entries are exemptible by the same names.
+        if (ExemptTypes.Length > 0)
+            list = list.Where(p => !ExemptTypes.Contains(p.Type)).ToList();
         return list;
     }
 
