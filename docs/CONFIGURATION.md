@@ -16,6 +16,7 @@ tool itself makes is the optional NER model download and the optional Presidio b
 | `SANITIZE_INJECTION_PATTERNS` | off | `=1` enables the Tier-1 deterministic injection-pattern set (instruction override, prompt extraction, persona jailbreaks, fake chat-template tokens, secret-exfil directives, tool-call hijacks) — findings ticketed as `INJECTION_*`, riding the same view-matching + vault machinery as every other tier. Default off: security test files and prompt-engineering docs would otherwise self-ticket. See docs/INJECTION-TIER.md. |
 | `SANITIZE_DATES` | off (v0.9.2) | Dates are operational context (deadlines, notice dates) — ticketing them made the model unable to answer "which deadline is earlier?" Set `=1` when your workflow treats dates as sensitive. Existing `DATE_*` tickets in old vaults still restore. |
 | `SANITIZE_FAIL_CLOSED` | **on** | On failures the gate refuses (clean 502s / hard errors) rather than passing content through. `=0` disables — don't. |
+| `SANITIZE_PASSTHROUGH` | empty = fail closed (v0.9.7) | Proxy mode: body-carrying requests (POST/PUT/PATCH) to any path other than the scrubbed `*/chat/completions` endpoint are **refused with a 400** — content can never cross unsanitized invisibly. Set comma-separated case-insensitive path suffixes (e.g. `v1/embeddings,v1/models`) to open specific lanes knowingly, or `*` for blanket pass-through (the pre-0.9.7 behavior; not recommended). GET/HEAD/DELETE always pass — no scrub-able body. |
 | `SANITIZE_ROOTS` | empty = unrestricted | Path allowlist for file reads and restores; violations throw `path outside SANITIZE_ROOTS allowlist`. Separator is platform-native (`:` on Unix, `;` on Windows). This is the fleet-lane lockdown knob. |
 | `SANITIZE_VAULT_PASSWORD` | unset | Vault at-rest protection: unset = DPAPI (Windows, tied to login) or plaintext + 0600 (Linux). Set = portable AES-GCM password mode (PBKDF2-SHA256 210k). Forgotten password = mappings unrecoverable. |
 
@@ -104,5 +105,14 @@ ClaimCheck --proxy --upstream <base-url> [--port 8766] [--host 127.0.0.1] [--vau
 ```
 
 Proxy defaults: loopback-only bind, port 8766, vault at `~/.sanitize-mcp/vaults/proxy.json`.
-Only OpenAI-compatible `chat/completions` POSTs are scrubbed/restored; every other path is
-forwarded verbatim.
+Only OpenAI-compatible `chat/completions` POSTs are scrubbed/restored. Every other body-carrying
+request (POST/PUT/PATCH) is **refused with a 400** (fail-closed, v0.9.7) — a client pointed at the
+proxy cannot silently leak content through endpoints the proxy doesn't understand (e.g. the OpenAI
+Responses API, which is a different body shape and NOT sanitized). Send such traffic directly to
+the upstream, or set `SANITIZE_PASSTHROUGH` to opt into specific paths knowingly.
+
+**One proxy process per vault directory.** Vault writes are atomic per file (tmp + rename) but the
+write lock is per-process and each instance keeps its own in-memory vault copy — two proxy
+processes sharing one vault file silently lose each other's tickets (last-writer-wins). Running
+multiple upstreams? Run one proxy per upstream, each with its own `--vault`/directory. In
+multitenant mode this costs nothing: restore is disabled, so vaults never need to merge.

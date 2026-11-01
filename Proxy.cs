@@ -48,6 +48,21 @@ public static class Proxy
     private static string? _upstreamPrefix;
     private static List<(string Type, Regex Rx, Func<string, bool>?)> _patterns = new();
 
+    // v0.9.7 fail-closed pass-through: body-carrying methods (POST/PUT/PATCH) to any path
+    // other than the scrubbed chat/completions endpoint are REFUSED (400) by default — a
+    // client pointed at the proxy can never silently leak raw content through an endpoint
+    // the proxy doesn't understand (the /v1/responses field report: requests crossed
+    // unsanitized while the caller believed they were protected). SANITIZE_PASSTHROUGH
+    // re-opens lanes deliberately: comma-separated case-insensitive path SUFFIXES
+    // (e.g. "v1/embeddings,v1/models") or "*" to opt everything back in (legacy behavior).
+    // GET/HEAD/DELETE and the /health + /status endpoints always pass — they carry no
+    // scrub-able content.
+    private static readonly string[] PassthroughAllowlist =
+        (Environment.GetEnvironmentVariable("SANITIZE_PASSTHROUGH") ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    private static readonly bool PassthroughAll = PassthroughAllowlist.Contains("*");
+    private static readonly string[] BodyMethods = { "POST", "PUT", "PATCH" };
+
     // v0.9.0 audit log — SANITIZE_PROXY_LOG: "1" keeps the legacy stderr request
     // summary; any other non-empty value is treated as a file path and every
     // forwarded request body (post-scrub — tickets only, never values) is
@@ -225,6 +240,20 @@ public static class Proxy
             path ??= "";
             if (HttpMethods.IsPost(ctx.Request.Method) && path.EndsWith("chat/completions"))
                 await HandleChat(ctx, path);
+            else if (BodyMethods.Contains(ctx.Request.Method, StringComparer.OrdinalIgnoreCase)
+                     && !PassthroughAll
+                     && !PassthroughAllowlist.Any(suffix =>
+                         path.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)))
+            {
+                // Fail closed (v0.9.7): refuse body-carrying requests to endpoints the
+                // proxy cannot scrub, rather than forwarding raw content invisibly.
+                ctx.Response.StatusCode = 400;
+                LogReq(ctx, path, 400, 0);
+                ctx.Response.ContentType = "text/plain";
+                await ctx.Response.WriteAsync(
+                    $"claimcheck: {ctx.Request.Method} /{path} is not a scrubbed endpoint — refusing to forward unsanitized content. " +
+                    "Only */chat/completions is sanitized. Send this traffic directly to the upstream, or add the path to SANITIZE_PASSTHROUGH (comma-separated path suffixes, or * for all) to opt in knowingly.");
+            }
             else
                 await PassThrough(ctx, path);
         });
