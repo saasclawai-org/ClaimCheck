@@ -650,11 +650,29 @@ public static class Proxy
             var payload = line[5..].TrimStart();
             if (payload == "[DONE]")
             {
+                if (SuppressCode)
+                {
+                    foreach (var kv in carries.ToArray())
+                    {
+                        var flushed = DrainRestored(kv.Value, vault);
+                        if (suppressStates.TryGetValue(kv.Key, out var st))
+                            flushed = ApplyCodeSuppress(flushed, st, flush: true);
+                        if (flushed.Length > 0)
+                        {
+                            // flushed text rides a proper SSE data event — raw lines break SSE parsers
+                            var ev = new JsonObject { ["choices"] = new JsonArray { new JsonObject { ["delta"] = new JsonObject { ["content"] = flushed } } } };
+                            await response.WriteAsync("data: " + ev.ToJsonString() + "\n\n", ct);
+                        }
+                    }
+                    carries.Clear();
+                    await response.WriteAsync("data: [DONE]\n\n", ct);
+                    continue;
+                }
                 var tail = new StringBuilder();
                 foreach (var c in carries.Values) tail.Append(c.ToString());
                 carries.Clear();
-                var flushed = DrainRestored(tail, vault);
-                if (flushed.Length > 0) await response.WriteAsync(flushed, ct);
+                var flushedAll = DrainRestored(tail, vault);
+                if (flushedAll.Length > 0) await response.WriteAsync(flushedAll, ct);
                 await response.WriteAsync("data: [DONE]\n\n", ct);
                 continue;
             }
