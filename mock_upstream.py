@@ -58,7 +58,11 @@ class H(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            resp = {"choices": [{"message": {"role": "assistant", "content": "The client FEIN is [FEIN_1] per records."}}],
+            content = "The client FEIN is [FEIN_1] per records."
+            if "CODEBLOCK-MODE" in body:
+                # v0.9.12: non-streaming fenced-code response for suppress-code tests
+                content = "Here is code:\n```js\nconst result = 1 + 1;\nconsole.log(result);\n```\nDone."
+            resp = {"choices": [{"message": {"role": "assistant", "content": content}}],
                     "usage": {"total_tokens": 10}}
             self.wfile.write(json.dumps(resp).encode())
 
