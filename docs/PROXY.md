@@ -216,3 +216,18 @@ can use it. When exposing through a tunnel (Cloudflare Tunnel, WireGuard, …):
    only protects the lane from unauthenticated use.
 3. If the data originates on the client machine and must not leave it, run the
    proxy **on the client** instead (upstream = the remote lane), not server-side.
+
+
+## SANITIZE_SUPPRESS_CODE (v0.9.12)
+
+Output-policy flag for support lanes: `SANITIZE_SUPPRESS_CODE=1` masks fenced
+code blocks (``` ... ```) in assistant content, replacing each block with a
+notice. Coding lanes leave it unset (default off) and keep full code output.
+
+- `SANITIZE_SUPPRESS_CODE=1` — enable (off by default)
+- `SANITIZE_SUPPRESS_CODE_MESSAGE` — replacement text (optional; sensible default included)
+- `/status` exposes `"suppressCode": true|false` for remote verification
+- Suppression applies to assistant `content` only — tool-call arguments and
+  reasoning streams are never suppressed, so agentic file writes still work
+- Streaming: fenced blocks split across SSE chunk boundaries are handled by a
+  per-stream line buffer + fence state (verified by test_suppress_code.py)

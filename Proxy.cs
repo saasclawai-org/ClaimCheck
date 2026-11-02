@@ -70,6 +70,68 @@ public static class Proxy
     private static readonly string? AuditPath = ResolveAuditPath();
     private static readonly object AuditLock = new();
 
+    // v0.9.12 output policy — SANITIZE_SUPPRESS_CODE=1 masks fenced code blocks in
+    // assistant content (support lanes: the bot stays in its lane); coding lanes
+    // leave it off (default). SANITIZE_SUPPRESS_CODE_MESSAGE overrides the
+    // replacement text shown in place of the masked block.
+    public static bool SuppressCode { get; } = Environment.GetEnvironmentVariable("SANITIZE_SUPPRESS_CODE") == "1";
+    public static string SuppressCodeMessage { get; } =
+        Environment.GetEnvironmentVariable("SANITIZE_SUPPRESS_CODE_MESSAGE") is { } scm && scm.Length > 0
+            ? scm
+            : "[code removed — this support channel doesn't generate code. For technical implementations, please contact our team.]";
+
+    /// <summary>Per-stream fence state for streaming suppression: ``` blocks are
+    /// line-anchored, so content is buffered per line and fence state persists
+    /// across chunk boundaries (fences split mid-chunk are handled by holding the
+    /// partial line).</summary>
+    private sealed class CodeSuppressState { public bool InFence; public string LineBuf = ""; }
+
+    private static string ApplyCodeSuppress(string text, CodeSuppressState st, bool flush)
+    {
+        if (!SuppressCode) return text;
+        st.LineBuf += text;
+        var outBuf = new StringBuilder();
+        int idx;
+        while ((idx = st.LineBuf.IndexOf('\n')) >= 0)
+        {
+            var line = st.LineBuf[..idx];
+            st.LineBuf = st.LineBuf[(idx + 1)..];
+            EmitSuppressLine(line, st, outBuf);
+        }
+        if (flush && st.LineBuf.Length > 0)
+        {
+            EmitSuppressLine(st.LineBuf, st, outBuf);
+            st.LineBuf = "";
+        }
+        return outBuf.ToString();
+    }
+
+    private static void EmitSuppressLine(string line, CodeSuppressState st, StringBuilder outBuf)
+    {
+        if (!st.InFence)
+        {
+            var trimmed = line.TrimStart();
+            if (trimmed.StartsWith("```"))
+            {
+                st.InFence = true;
+                var prefix = line[..line.IndexOf(trimmed, StringComparison.Ordinal)];
+                if (prefix.Length > 0) outBuf.Append(prefix);
+                outBuf.Append(SuppressCodeMessage);
+            }
+            else outBuf.Append(line).Append('\n');
+        }
+        else
+        {
+            var close = line.IndexOf("```", StringComparison.Ordinal);
+            if (close >= 0)
+            {
+                st.InFence = false;
+                var trail = line[(close + 3)..];
+                if (!string.IsNullOrWhiteSpace(trail)) outBuf.Append(trail).Append('\n');
+            }
+        }
+    }
+
     private static string? ResolveAuditPath()
     {
         var v = Environment.GetEnvironmentVariable("SANITIZE_PROXY_LOG");
@@ -226,6 +288,7 @@ public static class Proxy
             lastRequestUtc = LastRequestUtc,
             ner = Ner.Enabled,
             failClosed = FailClosed,
+            suppressCode = SuppressCode,
             tenantHeader = _tenantHeader ?? "",
             passthroughAllowlist = PassthroughAll ? "*" : string.Join(",", PassthroughAllowlist),
             exemptTypes = string.Join(",", Sanitizer.ExemptTypes),
@@ -377,7 +440,25 @@ public static class Proxy
         else
         {
             var text = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
-            await ctx.Response.WriteAsync(RestoreText(text, _vault), ctx.RequestAborted);
+            var restored = RestoreText(text, _vault);
+            if (SuppressCode)
+            {
+                try
+                {
+                    var node = System.Text.Json.Nodes.JsonNode.Parse(restored);
+                    if (node?["choices"] is System.Text.Json.Nodes.JsonArray choices)
+                        for (var i = 0; i < choices.Count; i++)
+                        {
+                            var msg = choices[i]?["message"];
+                            if (msg?["content"] is System.Text.Json.Nodes.JsonValue cv &&
+                                cv.TryGetValue<string>(out var ctext))
+                                msg["content"] = ApplyCodeSuppress(ctext, new CodeSuppressState(), flush: true);
+                        }
+                    restored = node.ToJsonString();
+                }
+                catch { /* suppression is best-effort */ }
+            }
+            await ctx.Response.WriteAsync(restored, ctx.RequestAborted);
         }
     }
 
@@ -558,6 +639,8 @@ public static class Proxy
         await response.StartAsync(ct);
         using var reader = new StreamReader(upstream);
         var carries = new Dictionary<string, StringBuilder>();
+        // v0.9.12: fence-suppression state per content stream (only used when SuppressCode)
+        var suppressStates = new Dictionary<string, CodeSuppressState>();
         string? line;
         while ((line = await reader.ReadLineAsync(ct)) is not null)
         {
@@ -586,7 +669,9 @@ public static class Proxy
                 {
                     var delta = choices[i]?["delta"];
                     if (delta is null) continue;
-                    RestoreCarried(delta, "content", carries, "c" + i, vault);
+                    if (!suppressStates.TryGetValue("c" + i, out var csState))
+                        suppressStates["c" + i] = csState = new CodeSuppressState();
+                    RestoreCarried(delta, "content", carries, "c" + i, vault, csState);
                     // Reasoning-capable OpenAI-compatible providers (including Z.ai)
                     // may stream visible/model text through reasoning_content/reasoning.
                     // Restore placeholders there too, preserving split-token handling.
@@ -602,12 +687,14 @@ public static class Proxy
         }
     }
 
-    private static void RestoreCarried(JsonNode parent, string field, Dictionary<string, StringBuilder> carries, string key, VaultData vault)
+    private static void RestoreCarried(JsonNode parent, string field, Dictionary<string, StringBuilder> carries, string key, VaultData vault, CodeSuppressState? suppress = null)
     {
         if (parent[field] is not JsonValue fv || !fv.TryGetValue<string>(out var chunk) || chunk.Length == 0) return;
         var sb = carries.TryGetValue(key, out var existing) ? existing : (carries[key] = new StringBuilder());
         sb.Append(chunk);
         var drained = DrainRestored(sb, vault);
+        // v0.9.12: content-only fence suppression (reasoning + tool args never suppressed)
+        if (suppress is not null) drained = ApplyCodeSuppress(drained, suppress, flush: false);
         // v0.8.4: when the whole chunk is a held-back partial token, the delta must
         // carry nothing — leaving the original chunk in place leaked the raw fragment
         // to the client and double-emitted it once the carry completed.
