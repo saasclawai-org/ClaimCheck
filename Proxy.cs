@@ -226,6 +226,7 @@ public static class Proxy
             lastRequestUtc = LastRequestUtc,
             ner = Ner.Enabled,
             failClosed = FailClosed,
+            tenantHeader = _tenantHeader ?? "",
             passthroughAllowlist = PassthroughAll ? "*" : string.Join(",", PassthroughAllowlist),
             exemptTypes = string.Join(",", Sanitizer.ExemptTypes),
             nerFailed = Ner.Failed,
