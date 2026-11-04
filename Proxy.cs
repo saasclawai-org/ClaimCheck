@@ -275,8 +275,11 @@ public static class Proxy
         var app = builder.Build();
 
         app.Map("/health", () => Results.Text("ok"));
-        app.Map("/status", () => Results.Json(new
+        app.Map("/status", () =>
         {
+            CustomClients.Load();
+            return Results.Json(new
+            {
             ok = true,
             version = Status.Version,
             port,
@@ -300,7 +303,10 @@ public static class Proxy
             presidioFailures = Presidio.ConsecutiveFailures,
             presidioLastFailure = Presidio.LastFailure,
             startedUtc = StartedUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'"),
-        }));
+            customClients = CustomClients.Count,
+            clientFeins = CustomClients.FeinCount,
+            });
+        });
         app.Map("/{**path}", async (HttpContext ctx, string? path) =>
         {
             path ??= "";
@@ -549,6 +555,8 @@ public static class Proxy
         if (gzFindings.Count > 0) { scrubbed = gzText; n += gzFindings.Count; }
         var (ccText, ccFindings) = CustomClients.ScrubCustom(scrubbed, vault);
         if (ccFindings.Count > 0) { scrubbed = ccText; n += ccFindings.Count; }
+        var (cfText, cfFindings) = CustomClients.ScrubFeins(scrubbed, vault);
+        if (cfFindings.Count > 0) { scrubbed = cfText; n += cfFindings.Count; }
         var (entText, entFindings) = EntityRecognizer.Scrub(scrubbed, vault);
         if (entFindings.Count > 0) { scrubbed = entText; n += entFindings.Count; }
         var (preText, preFindings) = Presidio.Scrub(scrubbed, vault);

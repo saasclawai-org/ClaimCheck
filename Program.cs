@@ -14,6 +14,15 @@ if (args.Length > 0 && args[0] == "import-clients")
     return 0;
 }
 
+if (args.Length > 0 && args[0] == "import-feins")
+{
+    if (args.Length < 2) { Console.Error.WriteLine("usage: ClaimCheck import-feins <csv-or-text-file>"); return 1; }
+    var feinsAdded = CustomClients.ImportFeinsFrom(args[1]);
+    CustomClients.Load();
+    Console.Out.WriteLine($"imported {CustomClients.FeinCount} FEINs -> {CustomClients.FeinsPath} (+{feinsAdded} new)");
+    return 0;
+}
+
 if (args.Length > 0 && args[0] == "restore")
 {
     Restore.Run(args);

@@ -43,6 +43,13 @@ public static class Tools
             findings.AddRange(ccFindings);
             lines = ccText.Split('\n').ToList();
         }
+        var (cfText, cfFindings) = CustomClients.ScrubFeins(joined, vault);
+        if (cfFindings.Count > 0)
+        {
+            joined = cfText;
+            findings.AddRange(cfFindings);
+            lines = cfText.Split('\n').ToList();
+        }
         var (entText, entFindings) = EntityRecognizer.Scrub(joined, vault);
         if (entFindings.Count > 0)
         {

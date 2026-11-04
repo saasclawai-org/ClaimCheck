@@ -151,13 +151,16 @@ ck("battery: no raw classic pat", GHPAT_CLASSIC not in s)
 ck("battery: DATE ticketed by design (A)", has(b, "DATE"))
 # v0.9.2: default = dates pass through; SANITIZE_DATES=1 re-enables ticketing
 os.environ.pop("SANITIZE_DATES", None)
-_b2 = scrub("Deadline: December 15, 2026 for Acme Corp")
+import random
+_dy = random.randint(2050, 2099)  # unique per run — the persistent vault must never
+_dates = f"Deadline: December 15, {_dy} for Acme Corp"  # pre-empt this check (a
+_b2 = scrub(_dates)  # vaulted date silently re-tickets and breaks the assertion)
 ck("battery: dates pass through by default",
-   "December 15, 2026" in _b2["sanitized"] and not has(_b2, "DATE"))
+   f"December 15, {_dy}" in _b2["sanitized"] and not has(_b2, "DATE"))
 os.environ["SANITIZE_DATES"] = "1"
-_b3 = scrub("Deadline: December 15, 2026 for Acme Corp")
+_b3 = scrub(_dates)
 ck("battery: SANITIZE_DATES=1 re-enables DATE",
-   has(_b3, "DATE") and "December 15, 2026" not in _b3["sanitized"])
+   has(_b3, "DATE") and f"December 15, {_dy}" not in _b3["sanitized"])
 ck("battery: negative B raw", "rotation every 90 days" in s)
 ck("battery: negative C raw", "board meeting" in s)
 # crypto/PERSON/LOCATION coverage is text-level: on a persistent vault the
