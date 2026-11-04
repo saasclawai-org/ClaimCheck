@@ -43,6 +43,22 @@ free-text detection at linear inference cost.
 |---|---|---|
 | `SANITIZE_GAZETTEER` | off | `=1` loads the 250k-name gazetteer for name detection. Opt-in: it shipped disabled after corruption-class false positives (repro in code). |
 
+### Client-master gazetteer (v0.9.12, deterministic)
+
+Loads your actual client roster as domain knowledge: company names (tokenized
+n-gram, longest-match-first) ticket as `CLIENT_<N>`, and FEINs are
+digit-normalized before matching — `12-3456789`, `123456789` and `12 3456 789`
+all ticket to the same `CLIENT_FEIN_N` (formatting variants match automatically).
+
+Files (hot-reload on change — no restart):
+
+- `~/.sanitize-mcp/custom_clients.json` — JSON array of client name strings
+- `~/.sanitize-mcp/custom_feins.json` — JSON array of FEIN strings
+
+CLI: `ClaimCheck import-feins <csv-or-text-file>` — imports FEINs (one per
+line; a CSV column also works) into `custom_feins.json` and prints the new
+count. `/status` exposes `customClients` and `clientFeins` counts.
+
 ## Presidio backend (opt-in, off by default)
 
 Bring-your-own detector: ClaimCheck calls a Presidio analyzer service as an additional,
@@ -62,6 +78,8 @@ probabilistically restored. Fail-soft: if the service is down, the tier is skipp
 |---|---|---|
 | `SANITIZE_FAKE_DATA` | off | `=1` realistic mode: instead of opaque tickets the model sees deterministic per-type fakes (SSN 9XX-00-XXXX, FEIN 00-XXXXXXX, `@claimcheck.invalid`, Luhn-valid cards) — restore swaps fakes back to real values. |
 | `SANITIZE_PROXY_LOG` | off | `=1` audit log: post-scrub bodies appended as JSON lines — tickets only, never raw values. |
+| `SANITIZE_SUPPRESS_CODE` (v0.9.12) | off | Support-lane output policy: `=1` masks fenced code blocks (` ``` … ``` `) in **assistant content**, replacing each block with a notice. Coding lanes leave it unset. Tool-call arguments and reasoning streams are never suppressed — agentic file writes still work. Fenced blocks split across SSE chunk boundaries are handled (test_suppress_code.py). See docs/PROXY.md. |
+| `SANITIZE_SUPPRESS_CODE_MESSAGE` | default notice | Optional replacement text for suppressed code blocks. |
 
 ## Environment (load-bearing, not optional)
 
@@ -101,6 +119,7 @@ ClaimCheck vault-list [--vault <path>] [--summary]
 ClaimCheck sanitize-text <text>          # or read from stdin
 ClaimCheck sanitize-file <path> [--content]
 ClaimCheck import-clients <file>
+ClaimCheck import-feins <file>           # FEINs (one per line or CSV column) -> custom_feins.json
 ClaimCheck restore <file|-> [--bare] [--vault <path>]
 ClaimCheck --proxy --upstream <base-url> [--port 8766] [--host 127.0.0.1] [--vault <path>]
 ```

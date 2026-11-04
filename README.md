@@ -89,7 +89,7 @@ sudo claimcheck-upgrade           # [version] pins a release, "latest" resolves 
 Stops the proxy around the swap, installs, restarts. Pi specifics (vault encryption,
 RAM, what's slow on a board): [docs/RASPBERRY-PI.md](docs/RASPBERRY-PI.md).
 
-Verify after any of the three: `ClaimCheck version` — prints e.g. `ClaimCheck 0.8.8`.
+Verify after any of the three: `ClaimCheck version` — prints e.g. `ClaimCheck 0.9.12`.
 
 ## Mode 1 — MCP server (stdio)
 
@@ -209,8 +209,9 @@ ClaimCheck --proxy --upstream https://api.example-provider.com/v1 --port 8766
 
 On Windows, `install.ps1 -WithProxy` registers the proxy as a logon **tray app**
 (`ClaimCheckTray.exe` — a green/red shield in the system tray; double-click for live
-status). `ClaimCheck status` / `status --json` works on any OS: proxy state, request
-and scrub counters, NER mode, vault size, MCP wiring.
+status). `ClaimCheck status` / `status --json` works on any OS and reports the full lane
+posture: version, fail-closed state, passthrough allowlist, exempt types, tenant header,
+suppress-code flag, client-master counts (clients + FEINs), NER mode, vault size, MCP wiring.
 
 The mapping vault lives on your machine and is **encrypted at rest** on Windows (DPAPI; optional
 AES-GCM password mode everywhere via `SANITIZE_VAULT_PASSWORD`).
@@ -270,10 +271,11 @@ operational context — ticketing them made the model unable to answer "which de
 earlier?" style questions (it compared opaque tickets and guessed). Set `SANITIZE_DATES=1`
 to re-enable date ticketing when your workflow treats dates as sensitive.
 
-**Scrub coverage:** only `POST` requests ending in `chat/completions` are scrubbed and
-restored — every other path (embeddings, image endpoints, native provider APIs like
-Anthropic's `/v1/messages` or OpenAI's Responses API) is forwarded verbatim. Reach
-providers through OpenAI-compatible surfaces. **[docs/PROXY.md](docs/PROXY.md)** has the
+**Scrub coverage (fail-closed, v0.9.7+):** only `POST` requests ending in `chat/completions` are scrubed and
+restored. Body-carrying requests (`POST`/`PUT`/`PATCH`) to any other path — embeddings, image endpoints, native
+provider APIs like Anthropic's `/v1/messages` — are **refused with a 400**, never forwarded unmasked. Set
+`SANITIZE_PASSTHROUGH` (comma-separated path suffixes, or `*`) to knowingly re-open specific lanes; `GET`/`HEAD`/`DELETE`
+(no scrub-able body) always pass. Reach providers through OpenAI-compatible surfaces. **[docs/PROXY.md](docs/PROXY.md)** has the
 provider-by-provider upstream URLs (Z.ai, OpenAI, Claude's compat layer, OpenRouter,
 local vLLM), a systemd template unit for running a multi-lane fleet, path-composition
 rules, update ordering, and the reversal-probe verification.
@@ -293,6 +295,10 @@ tier semantics: [docs/PRESIDIO.md](docs/PRESIDIO.md).**
 model FALLBACK providers configured outside the proxy are not covered.
 
 ## What it catches
+
+Detection runs in **tiers — deterministic first, curated lists second, NLP last**; overlapping
+detections resolve first-match-wins (no double-masking, no double-counting). Tier 1 is always on;
+Tier 2/3 are opt-in per deployment. All detection runs locally — no external calls during screening.
 
 Built-in recognizers (regex + validators — deterministic, no ML, no downloads):
 
@@ -321,6 +327,35 @@ Extend it with `.sanitize-patterns.json` in your project root — same contract,
 ```json
 [{ "name": "MEMBER_ID", "regex": "\\bM[0-9]{8}\\b", "placeholder": "MEMBER" }]
 ```
+
+### Client-master gazetteer (v0.9.12) — ticket your own client roster
+
+Import your real client list and ClaimCheck tickets company names and FEINs
+**digit-normalized** — `12-3456789`, `123456789` and `12 3456 789` all ticket to the same
+`CLIENT_FEIN_N` (formatting variants match automatically). Company names match tokenized,
+longest-first.
+
+```bash
+ClaimCheck import-feins clients.txt        # one FEIN per line; CSV column also works
+```
+
+FEINs live in `~/.sanitize-mcp/custom_feins.json`, client names in
+`~/.sanitize-mcp/custom_clients.json` (JSON array of name strings). Both **hot-reload on file
+change** — no restart. `/status` reports `customClients` and `clientFeins` counts.
+
+### Deployment knobs (proxy lanes)
+
+- `SANITIZE_EXEMPT_TYPES` (v0.9.9) — per-type exemptions: listed recognizers are skipped
+  entirely at scrub time, values pass **raw** (no tickets, no vault entries). For lanes where
+  the tenant's own contact info must be speakable. Default empty = full scrub.
+- `SANITIZE_SUPPRESS_CODE` (v0.9.12) — support-lane output policy: `=1` masks fenced code
+  blocks in **assistant content** (replaced with a notice). Coding lanes leave it unset.
+  Tool-call arguments and reasoning streams are never suppressed — agentic file writes
+  still work. `SANITIZE_SUPPRESS_CODE_MESSAGE` overrides the replacement text.
+- `SANITIZE_TENANT_HEADER` (v0.9.6) — multitenant lanes: every chat-completions request
+  must carry the tenant header; **per-tenant vaults** scrub independently and restore is
+  **disabled** (tenant PII never reassembles server-side). Missing/invalid header fails
+  closed. Full reference: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 ## Tickets & the vault
 
