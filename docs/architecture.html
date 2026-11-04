@@ -70,7 +70,7 @@
     </marker>
   </defs>
 
-  <text class="title" x="24" y="36">ClaimCheck — two services, two interfaces (everything scrubbed before Z.ai sees it)</text>
+  <text class="title" x="24" y="36">ClaimCheck — two services, two interfaces (everything scrubbed before the vendor sees it)</text>
 
   <!-- trust zones -->
   <rect class="zone" x="24" y="56" width="676" height="540" rx="10"/>
@@ -84,19 +84,19 @@
   <!-- You -> OpenClaw (chat surface, not scrubbed) -->
   <path class="edge edge-risk" d="M103,364 L103,466" marker-end="url(#arr-risk)"/>
   <!-- Cline -> MCP server -->
-  <path class="edge" d="M198,142 C250,142 240,240 286,272" marker-end="url(#arr)"/>
+  <path class="edge" d="M198,142 C250,142 240,240 266,272" marker-end="url(#arr)"/>
   <!-- OpenClaw -> MCP server -->
-  <path class="edge" d="M218,484 C260,430 250,360 286,332" marker-end="url(#arr)"/>
+  <path class="edge" d="M218,484 C260,430 250,360 266,332" marker-end="url(#arr)"/>
   <!-- MCP server <-> Vault -->
   <path class="edge" d="M380,348 L380,436" marker-start="url(#arr)" marker-end="url(#arr)"/>
   <!-- Cline -> Z.ai (direct, NOT scrubbed) -->
   <path class="edge edge-risk" d="M123,110 C320,30 620,60 826,266" marker-end="url(#arr-risk)"/>
   <!-- OpenClaw -> Proxy -->
-  <path class="edge" d="M218,508 L476,510" marker-end="url(#arr)"/>
+  <path class="edge" d="M218,508 L470,510" marker-end="url(#arr)"/>
   <!-- Proxy <-> Z.ai (scrub out, restore in) -->
   <path class="edge" d="M690,505 C780,470 800,420 824,362" marker-start="url(#arr)" marker-end="url(#arr)"/>
   <!-- Presidio -> MCP server + proxy (optional detection pass, dashed) -->
-  <path class="edge edge-opt" d="M518,296 L496,300" marker-end="url(#arr)"/>
+  <path class="edge edge-opt" d="M518,296 L514,300" marker-end="url(#arr)"/>
   <path class="edge edge-opt" d="M580,360 C584,406 586,436 583,470" marker-end="url(#arr)"/>
 
   <!-- edge labels -->
@@ -108,11 +108,14 @@
   <text class="small" x="228" y="405">stdio · bundle-mcp</text>
   <text class="small" x="228" y="420">opt-in tools</text>
   <text class="small" x="390" y="398">tickets ⇄ originals</text>
-  <text class="edgelabel-risk" x="300" y="70">model calls go DIRECT — not scrubbed (pastes leak here)</text>
-  <text class="small" x="250" y="498">every model call — automatic</text>
+  <text class="edgelabel-risk" x="260" y="90">model calls go DIRECT — not scrubbed</text>
+  <text class="edgelabel-risk" x="260" y="104">(pastes leak here)</text>
+  <text class="small" x="240" y="522">every model call — automatic</text>
   <text class="small" x="700" y="440">scrub outbound</text>
   <text class="small" x="700" y="456">restore inbound</text>
   <text class="tiny" x="592" y="432">optional pass</text>
+  <text class="tiny" x="36" y="572">detection tiers: patterns → names + client-master gazetteers → NLP (opt-in)</text>
+  <text class="tiny" x="36" y="588">detection inputs: .sanitize-patterns.json (project) · custom_clients.json + custom_feins.json (roster, hot-reload)</text>
 
   <!-- nodes -->
   <g>
@@ -132,18 +135,19 @@
     <text class="small" x="133" y="516" text-anchor="middle">Telegram channel</text>
   </g>
   <g>
-    <rect class="node process" x="286" y="260" width="210" height="88" rx="10"/>
+    <rect class="node process" x="266" y="260" width="248" height="88" rx="10"/>
     <text class="label" x="391" y="292" text-anchor="middle">ClaimCheck MCP server</text>
     <text class="small" x="391" y="310" text-anchor="middle">stdio</text>
     <text class="small" x="391" y="326" text-anchor="middle">read_sanitized · scan_file · sanitize_text</text>
     <text class="tiny" x="391" y="342" text-anchor="middle">opt-in — agent chooses to call it</text>
   </g>
   <g>
-    <rect class="node process" x="476" y="470" width="210" height="88" rx="10"/>
-    <text class="label" x="581" y="502" text-anchor="middle">ClaimCheck proxy :8766</text>
-    <text class="small" x="581" y="520" text-anchor="middle">systemd service · always on</text>
-    <text class="small" x="581" y="536" text-anchor="middle">scrub outbound · restore inbound</text>
-    <text class="tiny" x="581" y="552" text-anchor="middle">automatic — no agent cooperation needed</text>
+    <rect class="node process" x="470" y="470" width="220" height="100" rx="10"/>
+    <text class="label" x="580" y="502" text-anchor="middle">ClaimCheck proxy :8766</text>
+    <text class="small" x="580" y="520" text-anchor="middle">systemd service · always on</text>
+    <text class="small" x="580" y="536" text-anchor="middle">scrub outbound · restore inbound</text>
+    <text class="tiny" x="580" y="552" text-anchor="middle">no agent cooperation needed</text>
+    <text class="tiny" x="580" y="566" text-anchor="middle">fail-closed — unknown paths refused</text>
   </g>
   <g>
     <rect class="node storage" x="290" y="440" width="180" height="60" rx="8"/>
@@ -160,7 +164,7 @@
   </g>
   <g>
     <rect class="node external" x="744" y="270" width="168" height="88" rx="10"/>
-    <text class="label" x="828" y="302" text-anchor="middle">Z.ai / GLM</text>
+    <text class="label" x="828" y="302" text-anchor="middle">Claude / OpenAI</text>
     <text class="small" x="828" y="320" text-anchor="middle">cloud model provider</text>
     <text class="small" x="828" y="336" text-anchor="middle">sees placeholders only</text>
   </g>
