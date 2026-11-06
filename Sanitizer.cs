@@ -124,8 +124,11 @@ public static class Sanitizer
         // (SMTP_PASS=x) and JSON ("Pass": "x") yields the SAME ticket (dogfood finding:
         // cross-file ticket instability). Three branches: double-quoted / single-quoted /
         // unquoted (unquoted requires 6+ chars — prose-noise guard; leak-direction
-        // trade-off accepted for tiny unquoted values).
-        ("PASSWORD",   new Regex(@"(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*"")[^""\r\n]*(?="")|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*')[^'\r\n]*(?=')|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*)[^\s,;""'&\}\[\]]{6,}"), null),
+        // trade-off accepted for tiny unquoted values). v0.9.13: backslash and # excluded
+        // from unquoted values — escaped-JSON content ("\n25|") made the value run cross
+        // labels and swallow multi-line .env structure (vault autopsy 2026-11-05:
+        // PASSWORD_10/11/12/14/15 were whole .env sections with empty values).
+        ("PASSWORD",   new Regex(@"(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*"")[^""\r\n]*(?="")|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*')[^'\r\n]*(?=')|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*)[^\s,;""'&\}\[\]\\#]{6,}"), null),
         // v0.8.4: credentials embedded in scheme://user:pass@host URLs (database URLs,
         // deploy hooks) — ticket only the creds segment so scheme/host stay readable
         // for debugging.

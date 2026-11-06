@@ -178,6 +178,9 @@ public static class Presidio
             // multiline spans are skipped fail-soft for the deterministic tiers.
             if (seg.Contains('\n')) continue;
             if (PlaceholderRx.IsMatch(seg)) continue;
+            // v0.9.13: same span-quality guard as the NER tier — escaped-JSON content
+            // ("\n25|") defeats whitespace-based guards and code tokens get tagged.
+            if (EntityRecognizer.LooksLikeCode(seg)) continue;
             var ph = Sanitizer.Placeholder(vault, h.Type, seg);
             var line = 1 + text[..h.Start].Count(c => c == '\n');
             findings.Add(new Finding(line, h.Type, ph));

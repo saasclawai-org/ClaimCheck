@@ -432,6 +432,15 @@ public static class Ner
         }
         entities = mergedEnts;
 
+        // v0.9.13: span-quality guard (EntityRecognizer.LooksLikeCode) — the NER model
+        // over-tags code-heavy documents (2026-11-05: m.Length / DbSet / StatusCode
+        // ticketed as PERSON in a line-numbered C# listing) and BIO spans crossed
+        // newlines, swallowing numbered-list labels ("data;\n25|"). Presidio.cs has
+        // had the newline guard since v0.8.3; the NER tier now matches it.
+        entities = entities
+            .Where(en => !EntityRecognizer.LooksLikeCode(text[en.Start..en.End]))
+            .ToList();
+
         // drop overlaps with protected placeholders, dedupe, replace right-to-left
         entities = entities
             .Where(en => !protectedSpans.Any(p => en.Start < p.End && en.End > p.Start))
