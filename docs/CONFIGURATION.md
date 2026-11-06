@@ -5,6 +5,9 @@ emails, cards, keys, tokens, PEM blocks, …) is always on, and every optional t
 opt-in via environment variables. Nothing phones home; the only network traffic the
 tool itself makes is the optional NER model download and the optional Presidio backend.
 
+**Full PII-type matrix** — every type across all detection tiers, what's on by
+default, and the per-lane exclusion knobs: [PII-TYPES.md](PII-TYPES.md).
+
 **Environment variables are read once at process start.** Restart the proxy service
 (or re-open the MCP session) after changing any of them.
 

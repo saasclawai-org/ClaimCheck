@@ -101,6 +101,12 @@ earned its exclusion with real false positives:
 - **`URL`** (v0.8.5+) — fragments code identifiers: `sendmail` →
   `[URL_3]ndmail`, `SMTP` → `[URL_5]TP`. Real cred-bearing URLs are already
   covered by ClaimCheck's own URL-credentials row.
+- **`UUID`** (v0.9.15+) — presidio's UUID recognizer tickets every
+  trace/request/message ID (~80/day on a busy lane). Identifiers are
+  plumbing, not secrets; masking them breaks prompts ("why did request
+  `<uuid>` fail?") and floods the vault. Re-enable via
+  `SANITIZE_PRESIDIO_ENTITIES` if a lane truly needs UUID record keys
+  protected.
 
 Set `SANITIZE_PRESIDIO_ENTITIES` to re-enable any of them deliberately.
 
