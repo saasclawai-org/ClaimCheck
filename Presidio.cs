@@ -181,6 +181,9 @@ public static class Presidio
             // v0.9.13: same span-quality guard as the NER tier — escaped-JSON content
             // ("\n25|") defeats whitespace-based guards and code tokens get tagged.
             if (EntityRecognizer.LooksLikeCode(seg)) continue;
+            // v0.9.14: LOCATION noise guards — digits-only spans are not places, and
+            // non-gazetteer candidates one edit from a gazetteer name are NLP typos.
+            if (h.Type == "LOCATION" && EntityRecognizer.IsNoiseLocation(seg)) continue;
             var ph = Sanitizer.Placeholder(vault, h.Type, seg);
             var line = 1 + text[..h.Start].Count(c => c == '\n');
             findings.Add(new Finding(line, h.Type, ph));

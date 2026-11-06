@@ -15,6 +15,7 @@ Run: python3 test_presidio.py   (builds Release first if the DLL is missing)
 """
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -50,6 +51,13 @@ class PresidioStub(BaseHTTPRequestHandler):
         k = text.find("Klaus")
         if k >= 0:
             ents.append({"entity_type": "PERSON", "start": k, "end": k + 5, "score": 0.9})
+        # v0.9.14 fixtures: numeric location, near-gazetteer typo, and three casings
+        # of the same city (each casing an NLP model will happily tag on its own).
+        for needle in ("288", "atltanta", "atlanta", "Atlanta", "ATLANTA"):
+            i = text.find(needle)
+            while i >= 0:
+                ents.append({"entity_type": "LOCATION", "start": i, "end": i + len(needle), "score": 0.9})
+                i = text.find(needle, i + len(needle))
         out = json.dumps(ents).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -195,6 +203,30 @@ def main():
             failures.append(f"4 fail-soft passthrough missing raw wallet: {body!r}")
         if status(base).get("presidioFailures", 0) < 1:
             failures.append("4 fail-soft: presidio failure counter not reported")
+    finally:
+        proc.terminate(); proc.wait(timeout=10); shutil.rmtree(home, ignore_errors=True)
+
+    # Case 5: v0.9.14 LOCATION noise guards — numeric + near-gazetteer-typo spans pass
+    # raw; the three casings of the same city collapse into ONE ticket (case-fold dedup)
+    PRESIDIO_HITS.clear()
+    proc, base, errlog, home = start_proxy(upstream, presidio)
+    try:
+        r = post(base, "/v1/chat/completions",
+                 "Branch report: 288 near atltanta. The atlanta desk, the Atlanta desk and the ATLANTA desk all reported.")
+        body = RECORDED_BODIES[-1]
+        if "288" not in body:
+            failures.append(f"5 numeric LOCATION should pass raw: {body!r}")
+        if "atltanta" not in body:
+            failures.append(f"5 typo location should pass raw: {body!r}")
+        n_loc = len(set(re.findall(r"\[LOCATION_\d+\]", body)))
+        if n_loc != 1:
+            failures.append(f"5 expected 1 distinct LOCATION ticket for 3 casings, got {n_loc}: {body!r}")
+        for leak in ("atlanta", "Atlanta", "ATLANTA"):
+            if leak in body:
+                failures.append(f"5 raw city casing '{leak}' leaked (dedup failed): {body!r}")
+        st = status(base)
+        if st.get("vaultEntries") != 1:
+            failures.append(f"5 vault should hold exactly the 1 LOCATION entry, got {st.get('vaultEntries')}")
     finally:
         proc.terminate(); proc.wait(timeout=10); shutil.rmtree(home, ignore_errors=True)
 

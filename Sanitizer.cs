@@ -340,11 +340,20 @@ public static class Sanitizer
         // SANITIZE_VAULT_PASSWORD; Linux = plaintext + 0600 unless SANITIZE_VAULT_PASSWORD is set.
     }
 
+    // v0.9.14: NLP-sourced identity types whose values are case-insensitive entities —
+    // "atlanta"/"Atlanta"/"ATLANTA" are one place, so all casings share one ticket
+    // (predator field report 2026-11-06: three case variants tripled the vault's
+    // LOCATION entries). First-seen casing is stored and restored; later casings reuse
+    // the ticket. Credential/regex-tier types are exact-valued and never case-folded.
+    private static readonly HashSet<string> CaseFoldTypes = new(StringComparer.OrdinalIgnoreCase)
+    { "LOCATION", "PERSON", "ORG_ENTITY", "ORG", "LOC", "MISC", "NRP" };
+
     public static string Placeholder(VaultData v, string type, string val)
     {
         lock (VaultLock)
         {
-            var key = type + "|" + val;
+            var keyVal = CaseFoldTypes.Contains(type) ? val.ToLowerInvariant() : val;
+            var key = type + "|" + keyVal;
             if (v.Reverse.TryGetValue(key, out var existing)) return existing;
             var n = (v.Counts.TryGetValue(type, out var c) ? c : 0) + 1;
             v.Counts[type] = n;

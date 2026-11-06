@@ -62,6 +62,49 @@ public static class EntityRecognizer
         return false;
     }
 
+    // v0.9.14: LOCATION noise guards for the probabilistic tiers (Presidio LOCATION,
+    // NER LOC). Predator field report 2026-11-06: the vault collected "288" (digits-only
+    // span minted as a place) and "atltanta" (Presidio NLP typo-tolerance tagging a
+    // misspelled city — the gazetteer has "Atlanta", the scrub text had the typo).
+    // Digits-only spans are never places; a candidate that is NOT a gazetteer name
+    // (the set is case-insensitive) but is one edit away from one is a misspelling —
+    // skip it. The canonical spelling still tickets when it appears properly.
+    // Scoping: these fire on LOCATION spans only — PERSON/ORG keep full recall, since
+    // a rare real name can sit one edit from a common gazetteer word ("Gonzales"/
+    // "Gonzalez") and dropping it would be a false-negative leak, not mere noise.
+    public static bool IsNoiseLocation(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return true;
+        var hasLetter = false;
+        foreach (var ch in value)
+            if (char.IsLetter(ch)) { hasLetter = true; break; }
+        if (!hasLetter) return true;                 // "288" — digits/punctuation only
+        return IsNearGazetteerTypo(value);           // "atltanta" — one edit from "atlanta"
+    }
+
+    /// <summary>True when the value is absent from the gazetteer but within one edit
+    /// (deletion / substitution / insertion) of a gazetteer name. Probe cost is a few
+    /// hundred case-insensitive HashSet lookups per candidate — no fuzzy index needed.</summary>
+    public static bool IsNearGazetteerTypo(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        var len = value.Length;
+        if (len < 5 || len > 40) return false;       // probe band; short strings collide too easily
+        if (Gazetteer.HasName(value)) return false;  // a real name (any casing) is never a typo
+        for (var i = 0; i < len; i++)                // deletion: "atltanta" -> "atlanta"
+            if (Gazetteer.HasName(value.Remove(i, 1))) return true;
+        for (var i = 0; i < len; i++)                // substitution: same length, one char off
+            for (var c = 'a'; c <= 'z'; c++)
+            {
+                if (char.ToLowerInvariant(value[i]) == c) continue;
+                if (Gazetteer.HasName(value[..i] + c + value[(i + 1)..])) return true;
+            }
+        for (var i = 0; i <= len; i++)               // insertion: candidate missing one char
+            for (var c = 'a'; c <= 'z'; c++)
+                if (Gazetteer.HasName(value[..i] + c + value[i..])) return true;
+        return false;
+    }
+
     public static (string Text, List<Finding> Findings) Scrub(string text, VaultData vault)
     {
         var findings = new List<Finding>();
