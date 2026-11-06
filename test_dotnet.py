@@ -14,7 +14,10 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 HERE = Path(__file__).parent
-DOTNET_DIR = HERE.parent / "sanitize-mcp-dotnet"
+# v0.9.15: canonical tree is claimcheck-src since v0.9.13 (guards moved trees);
+# the old tools/sanitize-mcp-dotnet clone is stale and its Nov 5 build crashes at
+# MCP initialize — parity now exercises THIS tree's freshly built DLL.
+DOTNET_DIR = HERE
 DLL = DOTNET_DIR / "bin" / "Release" / "net9.0" / "ClaimCheck.dll"
 
 PII = ["27-9415062", "545-12-3456", "jane.doe@acmecorp.test", "(555) 867-5309",

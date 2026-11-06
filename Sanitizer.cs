@@ -140,13 +140,16 @@ public static class Sanitizer
         // DATE: full numeric dates (4-digit year only — bare years are Safe-Harbor-safe) and
         // named-month forms. Regex enforces month 01-12 / day 01-31; Feb-31 passes but the
         // cost is a reversible mask, not data loss.
-        ("DL",             new Regex(@"(?i)\b(?:driver'?s?\s+lic(?:ense)?|dl)\s*(?:no\.?|number|#)?\s*[:=]?\s*[A-Z0-9]{5,12}\b"), null),
+        // v0.9.15: \b after the label ("DLLMITRE"/"DlpRuleMatch" glued dl into words)
+        // + digit lookahead ("Driver's License Numbers" matched via no+mbers) —
+        // the 2026-11-06 8005 vault minted all three as DL tickets.
+        ("DL",             new Regex(@"(?i)\b(?:driver'?s?\s+lic(?:ense)?|dl)\b\s*(?:no\.?|number|#)?\s*[:=]?\s*(?=[A-Z0-9]*\d)[A-Z0-9]{5,12}\b"), null),
         ("ROUTING",        new Regex(@"(?i)\b(?:routing|aba)\s*(?:no\.?|number|#)?\s*[:=]?\s*\d{9}\b"), null),
         ("IP",             new Regex(@"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b"), null),
         ("MEDICAL_LICENSE",new Regex(@"(?i)\b(?:medical\s+lic(?:ense)?|lic(?:ense)?)\s*(?:no\.?|number|#)?\s*[:=]?\s*[A-Z]{2}-[A-Z]{2}-\d{4,8}\b"), null),
         ("INSURANCE_ID",   new Regex(@"(?i)\b(?:member|policy|insurance)\s*(?:id|#|number)?\s*[:=]?\s*[A-Z]{2,5}[- ]\d{4,12}\b"), null),
         ("ACCOUNT",        new Regex(@"(?i)(?<![A-Za-z])(?:bank\s+)?(?:acct|account)\s*(?:no\.?|number|#)?\s*[:=]?\s*\d{4,17}\b"), null),
-        ("ID_LABEL",       new Regex(@"(?i)\b(?:customer|client|invoice|policy|case|member|patient|mrn|record|serial|sn|device|biometric|fingerprint|voiceprint|claim|order|ticket|file|ref(?:erence)?|project|contract|vendor|supplier|emp(?:loyee)?)\s*(?:no\.?|number|#|id)?\s*[:=]?\s*\d{4,17}\b"), null),
+        ("ID_LABEL",       new Regex(@"(?i)\b(?:customer|client|invoice|policy|case|member|patient|mrn|record|serial|sn|device|biometric|fingerprint|voiceprint|claim|order|file|ref(?:erence)?|project|contract|vendor|supplier|emp(?:loyee)?)\s*(?:no\.?|number|#|id)?\s*[:=]?\s*\d{4,17}\b"), null),
         ("VIN",            new Regex(@"(?i)\bvin\s*(?:no\.?|number|#)?\s*[:=]?\s*[A-HJ-NPR-Z0-9]{17}\b"), null),
         ("ADDRESS",        new Regex(@"(?i)\b\d{1,5}\s+(?:[A-Z][a-z]+\s){1,4}(?:street|st|avenue|ave|blvd|boulevard|road|rd|drive|dr|lane|ln|court|ct|way|terrace|ter|place|pl|circle|cir)\.?,?\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*,?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?\b"), null),
     };

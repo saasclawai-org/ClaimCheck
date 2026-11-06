@@ -58,6 +58,27 @@ class PresidioStub(BaseHTTPRequestHandler):
             while i >= 0:
                 ents.append({"entity_type": "LOCATION", "start": i, "end": i + len(needle), "score": 0.9})
                 i = text.find(needle, i + len(needle))
+        # v0.9.15 fixtures: per-type noise gates (predator 8005 vault census 2026-11-06)
+        v915 = [
+            ("PERSON", "Setup"), ("PERSON", "jhightower"), ("PERSON", "Alabama, Arizona"),
+            ("PERSON", "Marina Romanchik"),
+            ("NRP", "ISP"), ("NRP", "American"),
+            ("ORGANIZATION", "AL, CO, KY, MI, MO, OH, PA"), ("ORGANIZATION", "Proliant, Inc"),
+            ("MEDICAL_LICENSE", "eb8029298"), ("MEDICAL_LICENSE", "AB-CD-123456"),
+            ("US_DRIVER_LICENSE", "E3"), ("US_DRIVER_LICENSE", "O365"),
+            ("US_DRIVER_LICENSE", "u2013"), ("US_DRIVER_LICENSE", "A1234567"),
+            ("PHONE_NUMBER", "2021113001"), ("PHONE_NUMBER", "6520771731"),
+            ("PHONE_NUMBER", "1648"), ("PHONE_NUMBER", "4045551212"),
+            ("UK_NHS", "1234567890"), ("UK_NHS", "9876543210"),
+            ("LOCATION", "Notice"), ("LOCATION", "Budgeting"), ("LOCATION", "Q3"),
+            ("LOCATION", "Denver"),
+            ("UUID", "550e8400-e29b-41d4-a716-446655440000"),
+        ]
+        for etype, needle in v915:
+            i = text.find(needle)
+            while i >= 0:
+                ents.append({"entity_type": etype, "start": i, "end": i + len(needle), "score": 0.9})
+                i = text.find(needle, i + len(needle))
         out = json.dumps(ents).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -230,6 +251,38 @@ def main():
     finally:
         proc.terminate(); proc.wait(timeout=10); shutil.rmtree(home, ignore_errors=True)
 
+    # Case 6: v0.9.15 per-type noise gates — junk spans pass raw, valid spans of the
+    # same presidio types still mask (field census 2026-11-06, predator 8005 vault)
+    PRESIDIO_HITS.clear()
+    proc, base, errlog, home = start_proxy(upstream, presidio)
+    try:
+        r = post(base, "/v1/chat/completions",
+                 "Setup met jhightower in Alabama, Arizona. Marina Romanchik filed it. "
+                 "ISP note from American staff. The roster said AL, CO, KY, MI, MO, OH, PA. "
+                 "Mail eb8029298, badge AB-CD-123456. Licenses E3, O365, u2013, A1234567. "
+                 "Calls 2021113001, 6520771731, 1648, 4045551212. NHS 1234567890 vs 9876543210. "
+                 "Notice the Budgeting Q3 numbers in Denver. Proliant, Inc signed. "
+                 "Trace 550e8400-e29b-41d4-a716-446655440000 closed.")
+        body = RECORDED_BODIES[-1]
+        # junk passes raw
+        for junk in ("Setup", "jhightower", "Alabama, Arizona", "ISP",
+                     "AL, CO, KY, MI, MO, OH, PA", "eb8029298",
+                     "E3", "O365", "u2013",
+                     "2021113001", "6520771731", "1648",
+                     "1234567890", "Notice", "Budgeting", "Q3",
+                     "550e8400-e29b-41d4-a716-446655440000"):
+            if junk not in body:
+                failures.append(f"6 junk span should pass raw: {junk!r} — body {body!r}")
+        # valid spans of the same types still mask
+        for leak in ("Marina Romanchik", "American", "A1234567", "4045551212",
+                     "9876543210", "Denver", "AB-CD-123456"):
+            if leak in body:
+                failures.append(f"6 valid span should be masked: {leak!r} — body {body!r}")
+        if "Proliant" in body:
+            failures.append(f"6 org should be masked (local ORG_ENTITY or presidio): {body!r}")
+    finally:
+        proc.terminate(); proc.wait(timeout=10); shutil.rmtree(home, ignore_errors=True)
+
     psrv.shutdown()
     usrv.shutdown()
 
@@ -238,7 +291,7 @@ def main():
         for f in failures:
             print("  -", f)
         sys.exit(1)
-    print("test_presidio: ALL PASSED — presidio masking, DATE_TIME exclusion, tier separation, fail-soft")
+    print("test_presidio: ALL PASSED — presidio masking, DATE_TIME exclusion, tier separation, fail-soft, v0.9.15 per-type gates")
 
 
 if __name__ == "__main__":

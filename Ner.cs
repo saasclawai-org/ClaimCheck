@@ -439,9 +439,10 @@ public static class Ner
         // had the newline guard since v0.8.3; the NER tier now matches it.
         entities = entities
             .Where(en => !EntityRecognizer.LooksLikeCode(text[en.Start..en.End]))
-            // v0.9.14: LOCATION noise guards on LOC spans (digits-only + near-gazetteer
-            // typos) — same policy as the Presidio tier.
-            .Where(en => !(TypeMap[en.Type] == "LOC" && EntityRecognizer.IsNoiseLocation(text[en.Start..en.End])))
+            // v0.9.15: per-type noise gates (strict place allowlist for LOC, PERSON
+            // junk filters, NRP/ORG state-list rules) — same policy as the Presidio
+            // tier; v0.9.14's LOC-only filter is folded into IsNoiseEntity.
+            .Where(en => !EntityRecognizer.IsNoiseEntity(TypeMap[en.Type], text[en.Start..en.End]))
             .ToList();
 
         // drop overlaps with protected placeholders, dedupe, replace right-to-left

@@ -48,8 +48,13 @@ public static class Presidio
     // v0.8.5: URL excluded — presidio's URL recognizer fragments code identifiers
     // ("sendmail" → [URL_3]ndmail, "SMTP" → [URL_5]TP; dogfood 2026-10-27).
     // ClaimCheck's own URL_CREDS row covers real cred-bearing URLs.
+    // v0.9.15: UUID excluded — predator 8005 field report (80 entries/day): presidio's
+    // UUID recognizer tickets every trace/request/message ID. Identifiers are plumbing,
+    // not secrets; masking them breaks prompts ("why did request <uuid> fail?") and
+    // floods the vault. Re-enable via SANITIZE_PRESIDIO_ENTITIES if a lane truly
+    // needs UUID record keys protected.
     private static readonly HashSet<string> DefaultExcluded =
-        new(StringComparer.OrdinalIgnoreCase) { "DATE_TIME", "TIME", "URL" };
+        new(StringComparer.OrdinalIgnoreCase) { "DATE_TIME", "TIME", "URL", "UUID" };
 
     /// <summary>v0.8.5: payloads above this size skip the presidio pass (fail-soft, regex
     /// tiers always full) — NER over huge Cline contexts was the "very long time" latency
@@ -181,9 +186,10 @@ public static class Presidio
             // v0.9.13: same span-quality guard as the NER tier — escaped-JSON content
             // ("\n25|") defeats whitespace-based guards and code tokens get tagged.
             if (EntityRecognizer.LooksLikeCode(seg)) continue;
-            // v0.9.14: LOCATION noise guards — digits-only spans are not places, and
-            // non-gazetteer candidates one edit from a gazetteer name are NLP typos.
-            if (h.Type == "LOCATION" && EntityRecognizer.IsNoiseLocation(seg)) continue;
+            // v0.9.15: per-type noise gates — strict place allowlist (LOCATION/LOC),
+            // NANP + NHS-checksum + US-DL structural validation, PERSON/NRP junk
+            // filters, state-code-list guard for ORG. Folds in v0.9.14's LOCATION rule.
+            if (EntityRecognizer.IsNoiseEntity(h.Type, seg)) continue;
             var ph = Sanitizer.Placeholder(vault, h.Type, seg);
             var line = 1 + text[..h.Start].Count(c => c == '\n');
             findings.Add(new Finding(line, h.Type, ph));
