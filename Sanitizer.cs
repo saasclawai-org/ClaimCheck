@@ -128,7 +128,12 @@ public static class Sanitizer
         // from unquoted values — escaped-JSON content ("\n25|") made the value run cross
         // labels and swallow multi-line .env structure (vault autopsy 2026-11-05:
         // PASSWORD_10/11/12/14/15 were whole .env sections with empty values).
-        ("PASSWORD",   new Regex(@"(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*"")[^""\r\n]*(?="")|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*')[^'\r\n]*(?=')|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*)[^\s,;""'&\}\[\]\\#]{6,}"), null),
+        // v0.9.16: "#" re-allowed in unquoted values — the exclusion made conn-string
+        // passwords containing # escape masking entirely ("Password=X7#mK2$vL9pQ" →
+        // value died at "X7", 2 < 6 chars; battery + field report 2026-11-06). Backslash
+        // stays excluded so the escaped-JSON guard holds; .env comment tails now
+        // over-mask — the safe side for a sanitizer.
+        ("PASSWORD",   new Regex(@"(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*"")[^""\r\n]*(?="")|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*')[^'\r\n]*(?=')|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*)[^\s,;""'&\}\[\]\\]{6,}"), null),
         // v0.8.4: credentials embedded in scheme://user:pass@host URLs (database URLs,
         // deploy hooks) — ticket only the creds segment so scheme/host stay readable
         // for debugging.

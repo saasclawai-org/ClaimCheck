@@ -61,7 +61,7 @@ class PresidioStub(BaseHTTPRequestHandler):
         # v0.9.15 fixtures: per-type noise gates (predator 8005 vault census 2026-11-06)
         v915 = [
             ("PERSON", "Setup"), ("PERSON", "jhightower"), ("PERSON", "Alabama, Arizona"),
-            ("PERSON", "Marina Romanchik"),
+            ("PERSON", "Marina Romanchik"), ("PERSON", "Dear Smithfield"), ("PERSON", "Et Al"),
             ("NRP", "ISP"), ("NRP", "American"),
             ("ORGANIZATION", "AL, CO, KY, MI, MO, OH, PA"), ("ORGANIZATION", "Proliant, Inc"),
             ("MEDICAL_LICENSE", "eb8029298"), ("MEDICAL_LICENSE", "AB-CD-123456"),
@@ -262,7 +262,7 @@ def main():
                  "Mail eb8029298, badge AB-CD-123456. Licenses E3, O365, u2013, A1234567. "
                  "Calls 2021113001, 6520771731, 1648, 4045551212. NHS 1234567890 vs 9876543210. "
                  "Notice the Budgeting Q3 numbers in Denver. Proliant, Inc signed. "
-                 "Trace 550e8400-e29b-41d4-a716-446655440000 closed.")
+                 "Trace 550e8400-e29b-41d4-a716-446655440000 closed. Dear Smithfield and Et Al initialed.")
         body = RECORDED_BODIES[-1]
         # junk passes raw
         for junk in ("Setup", "jhightower", "Alabama, Arizona", "ISP",
@@ -270,7 +270,7 @@ def main():
                      "E3", "O365", "u2013",
                      "2021113001", "6520771731", "1648",
                      "1234567890", "Notice", "Budgeting", "Q3",
-                     "550e8400-e29b-41d4-a716-446655440000"):
+                     "550e8400-e29b-41d4-a716-446655440000", "Dear Smithfield", "Et Al"):
             if junk not in body:
                 failures.append(f"6 junk span should pass raw: {junk!r} — body {body!r}")
         # valid spans of the same types still mask

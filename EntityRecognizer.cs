@@ -10,15 +10,24 @@ namespace ClaimCheck;
 /// </summary>
 public static class EntityRecognizer
 {
-    /// <summary>Business entity suffixes — the anchor that makes firm names recognizable.</summary>
-    private static readonly HashSet<string> EntitySuffixes = new(StringComparer.OrdinalIgnoreCase)
-    { "PLLC", "LLP", "LLC", "LLLP", "LP", "PC", "PA", "Inc", "Corp", "Corporation", "Ltd", "Company", "Co" };
+    // v0.9.16: run-based ORG recognizer fields (spec locked with Norman, 2026-11-06 hammering;
+    // supersedes OrgEntityRx — rules R1-R9 live on ScanOrgRuns)
+    private static readonly HashSet<string> OrgSuffixes = new(StringComparer.Ordinal)
+    { "PLLC", "LLP", "LLC", "LLLP", "LP", "Inc", "Corp", "Corporation", "PC", "PA", "Ltd", "Company", "Co" };
 
-    /// <summary>Matches: capitalized words (with commas/ampersands) ending in an entity suffix.
-    /// e.g. "Dewey, Cheathem &amp; Howe, PLLC" or "Bright Path Accounting, LLC"</summary>
-    private static readonly Regex OrgEntityRx = new(
-        @"(?<![a-z])([A-Z][a-zA-Z]*(?:\s*(?:,\s*|&|and\s+|of\s+|the\s+|de\s+)\s*[A-Z][a-zA-Z]*)*)\s*,?\s*\b(PLLC|LLP|LLC|LLLP|LP|Inc\.?|Corp(?:oration)?|PC|PA|Ltd)\b",
-        RegexOptions.Compiled);
+    // R2: lowercase crossings — of/de join freely; "and" joins only when both flanking
+    // sides are single words; every other lowercase word is a wall
+    private static readonly HashSet<string> OrgJoiners = new(StringComparer.OrdinalIgnoreCase)
+    { "of", "de" };
+
+    // R4: terminate the run regardless of case (the verbs/determiners that precede names)
+    private static readonly HashSet<string> OrgStopWords = new(StringComparer.OrdinalIgnoreCase)
+    { "Has", "Have", "Had", "Was", "Were", "Is", "Are", "Said", "Says", "Sued", "Filed",
+      "Received", "Notified", "Owes", "Per", "Against", "Rules", "Sent" };
+
+    // v0.9.16: salutation-opened PERSON spans are junk ("Dear Smithfield" → "Hi Dear Smithfield,")
+    private static readonly HashSet<string> Salutations = new(StringComparer.OrdinalIgnoreCase)
+    { "Dear", "Hi", "Hello", "Hey", "Greetings", "Regards" };
 
     /// <summary>Matches: "Last, First MI" where Last and First are in the gazetteer.
     /// Payroll/tax standard format for client identification.</summary>
@@ -180,7 +189,7 @@ public static class EntityRecognizer
         "garnishment","hire","hires","calculation","match","ingest","assemble","perspective","checkbox",
         "complete","description","manager","merged","convert","user","login","base","knowledge","job","task",
         "ticket","outlook","acrobat","zammad","email","app","mobile","budgeting","section","reporting",
-        "service","dept","misc","auto","awsservice","novatime","suser","student","loan","isp"
+        "service","dept","misc","auto","awsservice","novatime","suser","student","loan","isp","seq","ux"
     };
 
     /// <summary>Lower→Upper transitions after these prefixes are name particles
@@ -254,6 +263,13 @@ public static class EntityRecognizer
         if (value.Contains('\u2022')) return true;            // "Tab • Description"
         var tokens = System.Text.RegularExpressions.Regex.Matches(value, "[A-Za-z]+")
             .Select(m => m.Value).ToList();
+        // v0.9.16: salutation-opened spans ("Dear Smithfield") and the legal-Latin pair
+        // ("Et Al" — caption glue) are junk, not people
+        if (tokens.Count > 0 && Salutations.Contains(tokens[0])) return true;
+        for (var i = 0; i + 1 < tokens.Count; i++)
+            if (tokens[i].Equals("et", StringComparison.OrdinalIgnoreCase) &&
+                tokens[i + 1].Equals("al", StringComparison.OrdinalIgnoreCase))
+                return true;
         foreach (var t in tokens)
         {
             if (EntityNoiseWords.Contains(t)) return true;    // "Tab", "Outlook", "Dummy"
@@ -365,31 +381,147 @@ public static class EntityRecognizer
         }
     }
 
+    // ── v0.9.16: run-based ORG recognizer (spec locked with Norman, 2026-11-06 hammering) ──
+    // R1 run words: Capitalized, ALL-CAPS, or digit-led alphanumerics ("3M", "7-Eleven");
+    //    any other lowercase word is a wall.
+    // R2 lowercase crossings: of/de join freely; "and"/"And" joins only when both flanking
+    //    sides are single words (Johnson and Johnson ✓; "…Revenue And Lopez Logistics" ✗).
+    // R3 "&" crosses freely (a symbol, not a word).
+    // R4 stop-list words terminate regardless of case; a LEADING capitalised "The" is
+    //    exempt (The Home Depot Inc).
+    // R5 a suffix-terminated side ends the name — the connector after it starts a new
+    //    candidate (Acme LLC and Beta Corp = two mints, never one).
+    // R6 a candidate must end in a legal suffix.
+    // R7 per-side ≤3 words (an over-long leading side trims to the last 3); ≤2 connectors.
+    // R8 chained suffixes are name words, not terminators ("Shipbuilding Co Ltd").
+    // R9 narrow legacy guard: single ALL-CAPS name word + "PA" suffix skips (city, state).
+
+    private sealed record OrgTok(string Raw, string Core, int Start, int End, char Kind);
+
+    private static char ClassifyOrgToken(string raw, string core)
+    {
+        if (core.Length == 0) return 'B';
+        if (raw.EndsWith(":")) return 'B';                    // label ("Employer:")
+        if (core == "&") return 'A';                          // R3
+        if (OrgStopWords.Contains(core)) return 'T';          // R4
+        if (core.Equals("and", StringComparison.OrdinalIgnoreCase)) return 'N';  // R2
+        if (OrgJoiners.Contains(core)) return 'J';            // R2
+        if (char.IsLower(core[0])) return 'B';                // R1
+        if (!core.Any(char.IsLetter)) return 'B';             // amounts, bare numbers
+        if (OrgSuffixes.Contains(core)) return 'S';
+        return 'W';
+    }
+
+    private static List<(int Start, int End)> ScanOrgRuns(string text)
+    {
+        var cands = new List<(int Start, int End)>();
+        var lineStart = 0;
+        while (lineStart < text.Length)
+        {
+            var nl = text.IndexOf('\n', lineStart);
+            var lineEnd = nl < 0 ? text.Length : nl;
+            ScanOrgLine(text, lineStart, lineEnd, cands);
+            if (nl < 0) break;
+            lineStart = nl + 1;
+        }
+        return cands;
+    }
+
+    private static void ScanOrgLine(string text, int lo, int hi, List<(int Start, int End)> cands)
+    {
+        var toks = new List<OrgTok>();
+        foreach (Match m in Regex.Matches(text[lo..hi], @"\S+"))
+            toks.Add(new OrgTok(m.Value, m.Value.TrimEnd(',', '.', ';', ':'), lo + m.Index, lo + m.Index + m.Length, 'X'));
+        for (var i = 0; i < toks.Count; i++)
+            toks[i] = toks[i] with { Kind = ClassifyOrgToken(toks[i].Raw, toks[i].Core) };
+        for (var i = toks.Count - 2; i >= 0; i--)              // R8: chained suffix → name word
+            if (toks[i].Kind == 'S' && toks[i + 1].Kind == 'S')
+                toks[i] = toks[i] with { Kind = 'W' };
+        var s = 0;
+        while (s < toks.Count)
+        {
+            var k0 = toks[s].Kind;
+            var startOk = k0 is 'W'
+                || (k0 == 'T' && toks[s].Core.Equals("The", StringComparison.OrdinalIgnoreCase) && char.IsUpper(toks[s].Raw[0]));
+            if (!startOk) { s++; continue; }
+            var j = s + 1;
+            while (j < toks.Count)
+            {
+                var k = toks[j].Kind;
+                if (k is 'W' or 'A' or 'J' or 'N') { j++; continue; }
+                if (k == 'S') { j++; break; }
+                break;
+            }
+            if (j > s + 1 && toks[j - 1].Kind == 'S')
+            {
+                var span = BuildOrgSpan(text, toks, s, j);
+                if (span.Start < span.End) cands.Add(span);
+            }
+            s = Math.Max(j, s + 1);
+        }
+    }
+
+    private static (int Start, int End) BuildOrgSpan(string text, List<OrgTok> toks, int start, int end)
+    {
+        // R2/R5: split at a conditional "and" whose flanking sides are not both single words
+        var bounds = new List<int> { start };
+        for (var t = start; t < end; t++)
+        {
+            if (toks[t].Kind != 'N') continue;
+            var leftWords = OrgWordCount(toks, bounds[^1], t);
+            var rightWords = OrgWordCount(toks, t + 1, end);
+            if (leftWords == 1 && rightWords == 1) continue;
+            bounds.Add(t + 1);
+        }
+        for (var b = 0; b < bounds.Count; b++)
+        {
+            var ps = bounds[b];
+            var pe = b + 1 < bounds.Count ? bounds[b + 1] - 1 : end;   // exclude the joining "and"
+            if (pe - 1 <= ps || toks[pe - 1].Kind != 'S') continue;    // R6: must end in a suffix
+            // R7: sides by connector; ≤3 words per side (leading side trims), ≤2 connectors
+            var sideStarts = new List<int> { ps };
+            for (var t = ps; t < pe - 1; t++)
+                if (toks[t].Kind is 'A' or 'J') sideStarts.Add(t + 1);
+            if (sideStarts.Count > 3) sideStarts = sideStarts[^3..];
+            while (sideStarts.Count > 1 && OrgWordCount(toks, sideStarts[0], sideStarts[1] - 1) > 3)
+                sideStarts.RemoveAt(0);
+            if (OrgWordCount(toks, sideStarts[0], pe) > 4)
+            {
+                var seen = 0;
+                var cut = sideStarts[0];
+                for (var t = pe - 1; t >= sideStarts[0]; t--)
+                    if (toks[t].Kind == 'W' && ++seen == 3) { cut = t; break; }
+                sideStarts[0] = cut;
+            }
+            // R9: single ALL-CAPS name word + "PA" suffix = "PHILADELPHIA, PA" (city, state)
+            var wordToks = toks[sideStarts[0]..pe].Where(t => t.Kind == 'W').ToList();
+            if (wordToks.Count == 1 && wordToks[0].Core.All(char.IsUpper) && toks[pe - 1].Core == "PA") continue;
+            var e = toks[pe - 1].End;
+            while (e > toks[sideStarts[0]].Start + 1 && (text[e - 1] == ',' || text[e - 1] == ';')) e--;
+            return (toks[sideStarts[0]].Start, e);
+        }
+        return (0, 0);
+    }
+
+    private static int OrgWordCount(List<OrgTok> toks, int from, int to)
+        => toks[from..to].Count(t => t.Kind == 'W');
+
     public static (string Text, List<Finding> Findings) Scrub(string text, VaultData vault)
     {
         var findings = new List<Finding>();
 
-        // ---- ORG_ENTITY pass: firm names ----
-        var orgMatches = OrgEntityRx.Matches(text).Cast<Match>()
-            .Where(m => m.Success && m.Index >= 0)
-            .OrderByDescending(m => m.Index)
-            .ToList();
-        foreach (var m in orgMatches)
+        // ---- ORG_ENTITY pass: run-based firm-name scan (v0.9.16, spec locked with Norman) ----
+        foreach (var (os, oe) in ScanOrgRuns(text).OrderByDescending(c => c.Start))
         {
-            var value = m.Value.Trim();
-            // v0.9.13: "PHILADELPHIA, PA" — a state abbreviation is also an entity
-            // suffix (PA = Professional Association); an all-caps single-word "firm
-            // name" is a city or acronym, not a firm. Skip those.
-            var namePart = m.Groups[1].Value.Trim();
-            if (!namePart.Contains(' ') && namePart.All(char.IsUpper)) continue;
-            // v0.9.15: a comma-list of state codes ending in the PA suffix collision
-            // ("AL, CO, KY, MI, MO, OH, PA") is an enumeration, not a firm.
+            var value = text[os..oe];
+            // v0.9.15: a comma-list of state codes ("AL, CO, KY, MI, MO, OH, PA") is an
+            // enumeration, not a firm.
             if (IsStateCodeList(value)) continue;
             if (LooksLikeCode(value)) continue;
             var ph = Sanitizer.Placeholder(vault, "ORG_ENTITY", value);
-            var line = 1 + text[..m.Index].Count(c => c == '\n');
+            var line = 1 + text[..os].Count(c => c == '\n');
             findings.Add(new Finding(line, "ORG_ENTITY", ph));
-            text = text[..m.Index] + "[" + ph + "]" + text[(m.Index + m.Length)..];
+            text = text[..os] + "[" + ph + "]" + text[oe..];
         }
 
         // ---- REVERSE_NAME pass: "Last, First MI" validated against the gazetteer ----
