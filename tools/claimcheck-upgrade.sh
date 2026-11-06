@@ -69,17 +69,35 @@ if [ "${#ACTIVE[@]}" -gt 0 ]; then
 fi
 
 if [ -f "$BIN_PATH" ]; then
-  cp -f "$BIN_PATH" "$BIN_PATH.prev"
-  echo "==> previous build saved as $BIN_PATH.prev"
+  if [ -f "$TMP/ClaimCheck.dll" ]; then
+    APP_DIR="$(dirname "$BIN_PATH")"
+    STAMP=$(date -u +%Y%m%d%H%M%S)
+    echo "==> dir-layout build detected — snapshotting $APP_DIR"
+    $SUDO cp -a "$APP_DIR" "$APP_DIR.prev-$STAMP"
+    echo "==> previous dir saved as $APP_DIR.prev-$STAMP (keep last 3)"
+    ls -1dt "$APP_DIR".prev-* 2>/dev/null | tail -n +4 | while read -r old; do $SUDO rm -rf "$old"; done
+  else
+    cp -f "$BIN_PATH" "$BIN_PATH.prev"
+    echo "==> previous build saved as $BIN_PATH.prev"
+  fi
 fi
 
-echo "==> installing to $BIN_PATH ..."
-mkdir -p "$(dirname "$BIN_PATH")"
-install -m 755 "$TMP/ClaimCheck" "$BIN_PATH"
-# when root installs into a user's home (predator layout), keep the file owned by the
-# directory's owner instead of leaving a root-owned binary in $HOME
-if [ "$(id -u)" -eq 0 ]; then
-  chown --reference="$(dirname "$BIN_PATH")" "$BIN_PATH" 2>/dev/null || true
+if [ -f "$TMP/ClaimCheck.dll" ]; then
+  APP_DIR="$(dirname "$BIN_PATH")"
+  echo "==> installing dir layout to $APP_DIR ..."
+  $SUDO cp -a "$TMP/." "$APP_DIR/"
+  if [ "$(id -u)" -eq 0 ]; then
+    chown -R --reference="$APP_DIR" "$APP_DIR" 2>/dev/null || true
+  fi
+else
+  echo "==> installing to $BIN_PATH ..."
+  mkdir -p "$(dirname "$BIN_PATH")"
+  install -m 755 "$TMP/ClaimCheck" "$BIN_PATH"
+  # when root installs into a user's home (predator layout), keep the file owned by the
+  # directory's owner instead of leaving a root-owned binary in $HOME
+  if [ "$(id -u)" -eq 0 ]; then
+    chown --reference="$(dirname "$BIN_PATH")" "$BIN_PATH" 2>/dev/null || true
+  fi
 fi
 
 if [ "${#ACTIVE[@]}" -gt 0 ]; then
