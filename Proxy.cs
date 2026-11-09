@@ -339,6 +339,30 @@ public static class Proxy
         return app;
     }
 
+    // OpenAI deprecated `max_tokens` and new models (gpt-5.6+/6.x, o-series) HARD-REJECT it
+    // (400 unsupported_parameter: "use max_completion_tokens instead") while clients like
+    // Cline's OpenAI-compatible provider still send max_tokens. The proxy rebuilds the body
+    // anyway, so normalize for OpenAI-family upstreams (anything with "openai" in the host —
+    // api.openai.com, *.openai.azure.com). SANITIZE_OPENAI_MAXTOKENS=1 forces the rename on
+    // other upstream shapes; =0 disables even auto-detection.
+    private static bool IsOpenAiUpstream()
+    {
+        var env = Environment.GetEnvironmentVariable("SANITIZE_OPENAI_MAXTOKENS");
+        if (env == "1") return true;
+        if (env == "0") return false;
+        return Uri.TryCreate(_upstream, UriKind.Absolute, out var u) &&
+               u.Host.Contains("openai", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void ApplyOpenAiCompat(JsonNode? root)
+    {
+        if (root is not JsonObject obj || obj["max_tokens"] is null) return;
+        if (!IsOpenAiUpstream()) return;
+        if (obj["max_completion_tokens"] is null)
+            obj["max_completion_tokens"] = obj["max_tokens"]!.DeepClone();
+        obj.Remove("max_tokens");
+    }
+
     private static async Task HandleChat(HttpContext ctx, string path)
     {
         Interlocked.Increment(ref _totalRequests);
@@ -404,6 +428,7 @@ public static class Proxy
             req.Headers.TryAddWithoutValidation("Authorization", auth.ToArray());
         if (ctx.Request.Headers.TryGetValue("Accept", out var accept))
             req.Headers.TryAddWithoutValidation("Accept", accept.ToArray());
+        ApplyOpenAiCompat(root);
         var payload = root?.ToJsonString() ?? body;
         req.Content = new StringContent(payload, Encoding.UTF8, "application/json");
         AuditBody(payload);
