@@ -1,0 +1,24 @@
+[Unit]
+Description=ClaimCheck Dashboard (read-only operator console)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=norman
+WorkingDirectory=/home/norman/claimcheck/dashboard
+ExecStart=/home/norman/claimcheck/dashboard/ClaimCheck.Dashboard --lanes /home/norman/claimcheck/dashboard-lanes.json --db /home/norman/claimcheck/dashboard.db
+Restart=on-failure
+RestartSec=5
+# hardening: read-only FS except the claimcheck dir (DB + registry), no priv ops, private tmp
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/norman/claimcheck
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

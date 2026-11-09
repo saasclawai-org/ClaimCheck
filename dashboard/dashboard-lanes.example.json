@@ -1,0 +1,5 @@
+[
+  { "name": "anthropic-prod", "port": 8801, "audit": "/home/norman/claimcheck/audit/anthropic-prod.jsonl", "note": "prod vibe-coder lane -> api.anthropic.com" },
+  { "name": "openai-prod", "port": 8802, "audit": "/home/norman/claimcheck/audit/openai-prod.jsonl", "note": "prod vibe-coder lane -> api.openai.com" },
+  { "name": "qwen-test", "port": 8803, "audit": null, "note": "status-only lane — no audit file configured" }
+]

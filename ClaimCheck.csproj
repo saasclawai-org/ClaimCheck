@@ -22,6 +22,8 @@
     <Compile Remove="tray/**/*.cs" />
     <!-- bundlepack is a standalone release-packing helper (tools/), not part of the app -->
     <Compile Remove="tools/bundlepack/**/*.cs" />
+    <!-- dashboard is its own project (ClaimCheck.Dashboard.csproj) — keep its sources out of this build -->
+    <Compile Remove="dashboard/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="GazetteerNames.json" />
