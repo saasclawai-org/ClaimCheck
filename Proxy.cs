@@ -312,6 +312,8 @@ public static class Proxy
             path ??= "";
             if (HttpMethods.IsPost(ctx.Request.Method) && path.EndsWith("chat/completions"))
                 await HandleChat(ctx, path);
+            else if (HttpMethods.IsPost(ctx.Request.Method) && path.EndsWith("responses"))
+                await HandleResponses(ctx, path);
             else if (BodyMethods.Contains(ctx.Request.Method, StringComparer.OrdinalIgnoreCase)
                      && !PassthroughAll
                      && !PassthroughAllowlist.Any(suffix =>
@@ -324,7 +326,7 @@ public static class Proxy
                 ctx.Response.ContentType = "text/plain";
                 await ctx.Response.WriteAsync(
                     $"claimcheck: {ctx.Request.Method} /{path} is not a scrubbed endpoint — refusing to forward unsanitized content. " +
-                    "Only */chat/completions is sanitized. Send this traffic directly to the upstream, or add the path to SANITIZE_PASSTHROUGH (comma-separated path suffixes, or * for all) to opt in knowingly.");
+                    "Only */chat/completions and */responses are sanitized. Send this traffic directly to the upstream, or add the path to SANITIZE_PASSTHROUGH (comma-separated path suffixes, or * for all) to opt in knowingly.");
             }
             else
                 await PassThrough(ctx, path);
@@ -360,6 +362,18 @@ public static class Proxy
         if (!IsOpenAiUpstream()) return;
         if (obj["max_completion_tokens"] is null)
             obj["max_completion_tokens"] = obj["max_tokens"]!.DeepClone();
+        obj.Remove("max_tokens");
+    }
+
+    // v0.9.19: same story for the Responses API — it uses max_output_tokens; clients
+    // translating from the chat shape may send max_tokens, which api.openai.com
+    // hard-rejects on 6.x. Same upstream detection as the chat shim.
+    private static void ApplyResponsesCompat(JsonNode? root)
+    {
+        if (root is not JsonObject obj || obj["max_tokens"] is null) return;
+        if (!IsOpenAiUpstream()) return;
+        if (obj["max_output_tokens"] is null)
+            obj["max_output_tokens"] = obj["max_tokens"]!.DeepClone();
         obj.Remove("max_tokens");
     }
 
@@ -490,6 +504,321 @@ public static class Proxy
                 catch { /* suppression is best-effort */ }
             }
             await ctx.Response.WriteAsync(restored, ctx.RequestAborted);
+        }
+    }
+
+    // ===== v0.9.19: OpenAI Responses API (/v1/responses) =====
+    // GPT-6.x only accept function tools on /v1/responses (chat/completions hard-rejects
+    // tools on 6.x — verified live 2026-11-09). Same contract as HandleChat: scrub the
+    // outbound text fields, restore tickets inbound, fail closed on scrub errors;
+    // multitenant lanes pass responses back unrestored.
+    private static async Task HandleResponses(HttpContext ctx, string path)
+    {
+        Interlocked.Increment(ref _totalRequests);
+        _lastRequestUtc = DateTime.UtcNow;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        using var reader = new StreamReader(ctx.Request.Body);
+        var body = await reader.ReadToEndAsync();
+
+        JsonNode? root;
+        try { root = JsonNode.Parse(body); }
+        catch
+        {
+            ctx.Response.StatusCode = 400;
+            LogReq(ctx, path, 400, sw.ElapsedMilliseconds);
+            await ctx.Response.WriteAsync("invalid JSON body");
+            return;
+        }
+
+        VaultData vault = _vault;
+        FileInfo vaultFile = _vaultFile;
+        if (_tenantHeader is not null)
+        {
+            (vault, vaultFile) = ResolveTenant(ctx, path, sw);
+            if (vault is null)
+            {
+                await ctx.Response.WriteAsync((string?)ctx.Items["ccError"] ?? "claimcheck: invalid tenant");
+                return;
+            }
+        }
+
+        try
+        {
+            if (root is not null)
+            {
+                ScrubResponses(root, vault);
+                Interlocked.Increment(ref _scrubbedRequests);
+                Sanitizer.SaveVault(vaultFile, vault);
+            }
+        }
+        catch (Exception e)
+        {
+            if (!FailClosed) throw;
+            ctx.Response.StatusCode = 503;
+            LogReq(ctx, path, 503, sw.ElapsedMilliseconds);
+            await ctx.Response.WriteAsync("claimcheck: scrub failed (fail-closed): " + e.Message);
+            return;
+        }
+
+        var rest = path;
+        var upPath = new Uri(_upstream).AbsolutePath.TrimEnd('/');
+        if (upPath.Length > 0 && rest.StartsWith("v1/"))
+            rest = rest[3..];
+        rest = StripUpstreamPrefix(rest);
+        using var req = new HttpRequestMessage(HttpMethod.Post, _upstream + rest.TrimStart('/'));
+        if (ctx.Request.Headers.TryGetValue("Authorization", out var auth))
+            req.Headers.TryAddWithoutValidation("Authorization", auth.ToArray());
+        if (ctx.Request.Headers.TryGetValue("Accept", out var accept))
+            req.Headers.TryAddWithoutValidation("Accept", accept.ToArray());
+        ApplyResponsesCompat(root);
+        var payload = root?.ToJsonString() ?? body;
+        req.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+        AuditBody(payload);
+
+        HttpResponseMessage resp;
+        try
+        {
+            resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+        }
+        catch (Exception e) when (e is HttpRequestException or System.IO.IOException)
+        {
+            ctx.Response.StatusCode = 502;
+            LogReq(ctx, path, 502, sw.ElapsedMilliseconds);
+            await ctx.Response.WriteAsync("claimcheck: upstream unreachable: " + e.Message);
+            return;
+        }
+        using var _respScope = resp;
+        ctx.Response.StatusCode = (int)resp.StatusCode;
+        LogReq(ctx, path, (int)resp.StatusCode, sw.ElapsedMilliseconds);
+        var ctype = resp.Content.Headers.ContentType?.ToString() ?? "application/json";
+        ctx.Response.ContentType = ctype;
+        var media = resp.Content.Headers.ContentType?.MediaType ?? "";
+
+        if (_tenantHeader is not null)
+        {
+            // multitenant no-restore lane: responses cross back untouched — tickets stay
+            // tickets; no tenant's PII ever reassembles on this server.
+            if (media.Contains("event-stream"))
+                await (await resp.Content.ReadAsStreamAsync(ctx.RequestAborted))
+                    .CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
+            else
+                await ctx.Response.WriteAsync(await resp.Content.ReadAsStringAsync(ctx.RequestAborted), ctx.RequestAborted);
+            return;
+        }
+        if (media.Contains("event-stream"))
+            await RestoreResponsesSse(await resp.Content.ReadAsStreamAsync(ctx.RequestAborted), ctx.Response, ctx.RequestAborted, _vault);
+        else
+        {
+            // JSON-safe restore: rewrite only the response object's text fields (a vault
+            // value containing quotes would corrupt whole-serialized-text replacement).
+            var text = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
+            JsonNode? node = null;
+            try { node = JsonNode.Parse(text); }
+            catch { }
+            if (node is null)
+            {
+                await ctx.Response.WriteAsync(RestoreText(text, _vault), ctx.RequestAborted);
+                return;
+            }
+            RestoreResponsesObject(node, _vault);
+            await ctx.Response.WriteAsync(node.ToJsonString(), ctx.RequestAborted);
+        }
+    }
+
+    // -------- /v1/responses outbound scrub --------
+    // Text lives in `instructions`, `input` (a string, or an item array: message content
+    // text, function_call arguments, function_call_output output) — nowhere else. Tool
+    // DEFINITIONS stay dev-authored (same policy as the chat path); reasoning items are
+    // opaque/encrypted and must never be touched.
+    private static int ScrubResponses(JsonNode root, VaultData vault)
+    {
+        var count = 0;
+        if (root["instructions"] is JsonValue iv && iv.TryGetValue<string>(out var ins))
+            count += ScrubResponsesField(root, "instructions", ins, vault);
+        if (root["input"] is JsonValue sv && sv.TryGetValue<string>(out var s))
+            count += ScrubResponsesField(root, "input", s, vault);
+        else if (root["input"] is JsonArray items)
+            foreach (var item in items)
+                count += ScrubResponsesItem(item, vault);
+        return count;
+    }
+
+    private static int ScrubResponsesField(JsonNode parent, string field, string text, VaultData vault)
+    {
+        var (scrubbed, n) = ScrubOne(text, vault);
+        if (n > 0) parent[field] = scrubbed;
+        return n;
+    }
+
+    private static int ScrubResponsesItem(JsonNode? item, VaultData vault)
+    {
+        if (item is not JsonObject obj) return 0;
+        var type = obj["type"] is JsonValue tv && tv.TryGetValue<string>(out var t) && t.Length > 0 ? t : "message";
+        switch (type)
+        {
+            case "message":
+            {
+                var count = 0;
+                if (obj["content"] is JsonValue cv && cv.TryGetValue<string>(out var ctext))
+                    count += ScrubResponsesField(obj, "content", ctext, vault);
+                else if (obj["content"] is JsonArray parts)
+                    foreach (var part in parts)
+                        if (part?["text"] is JsonValue tv2 && tv2.TryGetValue<string>(out var txt))
+                            count += ScrubResponsesField(part!, "text", txt, vault);
+                return count;
+            }
+            case "function_call":
+                return obj["arguments"] is JsonValue av && av.TryGetValue<string>(out var args)
+                    ? ScrubResponsesField(obj, "arguments", args, vault)
+                    : 0;
+            case "function_call_output":
+            {
+                if (obj["output"] is JsonValue ov && ov.TryGetValue<string>(out var output))
+                    return ScrubResponsesField(obj, "output", output, vault);
+                if (obj["output"] is JsonArray oparts)
+                {
+                    var n = 0;
+                    foreach (var part in oparts)
+                        if (part?["text"] is JsonValue tv3 && tv3.TryGetValue<string>(out var txt3))
+                            n += ScrubResponsesField(part!, "text", txt3, vault);
+                    return n;
+                }
+                return 0;
+            }
+            default:
+                return 0; // reasoning + unknown item types: untouched
+        }
+    }
+
+    // -------- /v1/responses inbound restore --------
+
+    // JSON-safe restore of a complete Responses API object (non-streaming body or the
+    // embedded "response" of response.completed): only text-bearing fields are rewritten,
+    // so vault values containing quotes/newlines re-serialize cleanly.
+    private static void RestoreResponsesObject(JsonNode node, VaultData vault)
+    {
+        if (node["instructions"] is JsonValue iv && iv.TryGetValue<string>(out var ins))
+            node["instructions"] = RestoreText(ins, vault);
+        if (node["output"] is JsonArray items)
+            foreach (var item in items)
+                RestoreResponsesItem(item, vault);
+    }
+
+    private static void RestoreResponsesItem(JsonNode? item, VaultData vault)
+    {
+        if (item is not JsonObject obj) return;
+        var type = obj["type"] is JsonValue tv && tv.TryGetValue<string>(out var t) ? t : "message";
+        if (type == "message")
+        {
+            if (obj["content"] is JsonArray parts)
+                foreach (var part in parts)
+                    if (part?["text"] is JsonValue pv && pv.TryGetValue<string>(out var txt))
+                        part["text"] = RestoreText(txt, vault);
+        }
+        else if (type == "function_call")
+        {
+            if (obj["arguments"] is JsonValue av && av.TryGetValue<string>(out var args))
+                obj["arguments"] = RestoreText(args, vault);
+        }
+    }
+
+    // Streaming restore for the Responses API event stream. Text rides `delta` fields
+    // (output_text / function_call_arguments / reasoning summaries) — same carry +
+    // partial-placeholder hold as the chat path, keyed per item_id and kind. `*.done`
+    // events and response.completed carry complete text, restored in place. Code
+    // suppression is not applied here (coding lanes keep it off).
+    private static async Task RestoreResponsesSse(Stream upstream, HttpResponse response, CancellationToken ct, VaultData vault)
+    {
+        response.ContentType = "text/event-stream";
+        await response.StartAsync(ct);
+        using var reader = new StreamReader(upstream);
+        var carries = new Dictionary<string, (StringBuilder SB, bool IsArgs, string ItemId)>();
+        string? line;
+        while ((line = await reader.ReadLineAsync(ct)) is not null)
+        {
+            if (line.Length == 0) { await response.WriteAsync("\n", ct); continue; }
+            if (!line.StartsWith("data:"))
+            {
+                await response.WriteAsync(line + "\n", ct);
+                continue;
+            }
+            var payload = line[5..].TrimStart();
+            JsonNode? node;
+            try { node = JsonNode.Parse(payload); }
+            catch
+            {
+                // [DONE] or a non-JSON line: flush held tails, then pass through
+                await FlushResponsesCarries(carries, response, ct, vault);
+                await response.WriteAsync(line + "\n", ct);
+                continue;
+            }
+            if (node is null) { await response.WriteAsync(line + "\n", ct); continue; }
+
+            var etype = node["type"] is JsonValue tv && tv.TryGetValue<string>(out var t) ? t : "";
+            switch (etype)
+            {
+                case "response.output_text.delta":
+                case "response.reasoning_summary_text.delta":
+                case "response.reasoning_text.delta":
+                case "response.function_call_arguments.delta":
+                {
+                    var itemId = node["item_id"] is JsonValue iv && iv.TryGetValue<string>(out var iid) && iid.Length > 0 ? iid : "top";
+                    var isArgs = etype.EndsWith("arguments.delta", StringComparison.Ordinal);
+                    var key = itemId + ":" + (isArgs ? 'a' : 't');
+                    if (!carries.TryGetValue(key, out var c))
+                        carries[key] = c = (new StringBuilder(), isArgs, itemId);
+                    if (node["delta"] is JsonValue dv && dv.TryGetValue<string>(out var chunk) && chunk.Length > 0)
+                    {
+                        c.SB.Append(chunk);
+                        node["delta"] = DrainRestored(c.SB, vault);
+                    }
+                    break;
+                }
+                case "response.output_text.done":
+                    if (node["text"] is JsonValue tx && tx.TryGetValue<string>(out var full))
+                        node["text"] = RestoreText(full, vault);
+                    break;
+                case "response.function_call_arguments.done":
+                    if (node["arguments"] is JsonValue av && av.TryGetValue<string>(out var fa))
+                        node["arguments"] = RestoreText(fa, vault);
+                    break;
+                case "response.content_part.done":
+                    if (node["part"]?["text"] is JsonValue pv && pv.TryGetValue<string>(out var ptxt))
+                        node["part"]!["text"] = RestoreText(ptxt, vault);
+                    break;
+                case "response.output_item.done":
+                    if (node["item"] is JsonNode itemNode)
+                        RestoreResponsesItem(itemNode, vault);
+                    break;
+                case "response.completed":
+                    if (node["response"] is JsonNode respNode)
+                        RestoreResponsesObject(respNode, vault);
+                    break;
+            }
+            await response.WriteAsync("data: " + node.ToJsonString() + "\n\n", ct);
+        }
+        await FlushResponsesCarries(carries, response, ct, vault);
+    }
+
+    // End-of-stream / [DONE]: emit anything still held. A trailing open-bracket fragment
+    // is a literal at this point, not the head of a ticket — hold-back only makes sense
+    // mid-stream. Complete tickets inside the tail are restored.
+    private static async Task FlushResponsesCarries(
+        Dictionary<string, (StringBuilder SB, bool IsArgs, string ItemId)> carries,
+        HttpResponse response, CancellationToken ct, VaultData vault)
+    {
+        foreach (var kv in carries.ToArray())
+        {
+            var text = RestoreText(kv.Value.SB.ToString(), vault);
+            carries.Remove(kv.Key);
+            if (text.Length == 0) continue;
+            var ev = new JsonObject
+            {
+                ["type"] = kv.Value.IsArgs ? "response.function_call_arguments.delta" : "response.output_text.delta",
+                ["item_id"] = kv.Value.ItemId,
+                ["delta"] = text,
+            };
+            await response.WriteAsync("data: " + ev.ToJsonString() + "\n\n", ct);
         }
     }
 

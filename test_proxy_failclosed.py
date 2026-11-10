@@ -2,9 +2,10 @@
 """Proxy fail-closed pass-through gate (v0.9.7).
 
 Body-carrying requests (POST/PUT/PATCH) to any path other than the scrubbed
-chat/completions endpoint are refused with a 400 by default — content can never
-cross unsanitized invisibly (the /v1/responses field report: requests crossed
-unsanitized while the caller believed they were protected).
+endpoints (chat/completions; /v1/responses since v0.9.19) are refused with a
+400 by default — content can never cross unsanitized invisibly (the
+/v1/responses field report: requests crossed unsanitized while the caller
+believed they were protected).
 
 SANITIZE_PASSTHROUGH re-opens lanes: comma-separated case-insensitive path
 suffixes, or "*" for blanket pass-through (pre-0.9.7 behavior).
@@ -112,10 +113,17 @@ def main():
     # --- default posture: fail closed ---
     proc = start_proxy({})
     try:
-        code, body = post(PROXY_PORT, "v1/responses")
-        (fails.append(f"responses: expected 400, got {code}") if code != 400 else
-         fails.append("responses: 400 body lacks claimcheck marker") if "claimcheck" not in body
-         else None)
+        # v0.9.19: /v1/responses is a scrubbed endpoint now (it was the v0.9.7 field
+        # report that motivated refusing it) — reaches upstream ticketed, never raw
+        code, _ = post(PROXY_PORT, "v1/responses",
+                       json.dumps({"model": "x", "input": f"key {SECRET}"}).encode())
+        if code != 200:
+            fails.append(f"responses: expected 200 (v0.9.19 scrubbed), got {code}")
+        if any(SECRET in b for _, b in HITS):
+            fails.append("responses leaked raw secret upstream")
+        if not any(p.endswith("/v1/responses") for p, _ in HITS):
+            fails.append(f"responses never reached upstream: {HITS}")
+        HITS.clear()
         code, _ = post(PROXY_PORT, "v1/embeddings")
         if code != 400:
             fails.append(f"embeddings: expected 400, got {code}")
@@ -144,9 +152,10 @@ def main():
         code, _ = post(PROXY_PORT, "v1/embeddings")
         if code != 200:
             fails.append(f"allowlisted embeddings: expected 200, got {code}")
+        # v0.9.19: responses is scrubbed natively — needs no allowlist entry anymore
         code, _ = post(PROXY_PORT, "v1/responses")
-        if code != 400:
-            fails.append(f"non-allowlisted responses: expected 400, got {code}")
+        if code != 200:
+            fails.append(f"responses: expected 200 (scrubbed regardless of allowlist), got {code}")
         if not any(p.endswith("/v1/embeddings") for p, _ in HITS):
             fails.append(f"embeddings never reached upstream: {HITS}")
     finally:
