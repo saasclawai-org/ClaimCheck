@@ -133,7 +133,24 @@ public static class Sanitizer
         // value died at "X7", 2 < 6 chars; battery + field report 2026-11-06). Backslash
         // stays excluded so the escaped-JSON guard holds; .env comment tails now
         // over-mask — the safe side for a sanitizer.
-        ("PASSWORD",   new Regex(@"(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*"")[^""\r\n]*(?="")|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*')[^'\r\n]*(?=')|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|keys?|auth)[""']?\s*[:=]\s*)[^\s,;""'&\}\[\]\\]{6,}"), null),
+        // v0.9.20: camelCase/code false-positive purge (field report 2026-11-11: a
+        // payroll-scraper vault minted 30+ bogus PASSWORD tickets — "endDate", "cc1",
+        // "jobCode", "ctx.Items", "Regex.Match(loginHtml"). Two root causes:
+        //   1. bare "keys?" in the QUOTED branches ticketed every `key: "x"` line in
+        //      JS/JSON/C# field maps — portal form-field definitions lit up wholesale.
+        //      Quoted branches now require qualified compounds (api/access/auth/secret/
+        //      client/license/consumer + key); bare "keys?" survives ONLY in the unquoted
+        //      branch (.env KEY=x coverage) where the new value guards apply.
+        //   2. the unquoted branch captured CODE as the value when the assignment TARGET
+        //      was password-named: `pwd = Regex.Match(loginHtml, ...)` → "Regex.Match(
+        //      loginHtml", `password = ctx.Items["x"]` → "ctx.Items". Guards: value may
+        //      value run must terminate at whitespace/EOL/,/;/&/)/}/]/quote (never a
+        //      call paren or indexer bracket) and must contain a digit or punctuation/
+        //      symbol WITHIN the value (class-subtraction lookahead) — pure-alpha
+        //      identifiers ("endDate", "cancellationToken") no longer qualify. Real unquoted secrets
+        //      nearly always carry a digit/symbol; pure-alpha ones ride the quoted/env
+        //      tiers. Leak-direction trade-off, same family as the 6-char guard.
+        ("PASSWORD",   new Regex(@"(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|api[_-]?keys?|access[_-]?keys?|secret[_-]?keys?|auth[_-]?keys?|client[_-]?keys?|license[_-]?keys?|consumer[_-]?keys?|auth)[""']?\s*[:=]\s*"")[^""\r\n]*(?="")|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|api[_-]?keys?|access[_-]?keys?|secret[_-]?keys?|auth[_-]?keys?|client[_-]?keys?|license[_-]?keys?|consumer[_-]?keys?|auth)[""']?\s*[:=]\s*')[^'\r\n]*(?=')|(?i)(?<=(?:^|[^A-Za-z0-9])[""']?(?:password|passwd|passphrase|pwd|pass|secret|token|cookie|credentials?|cred|api[_-]?keys?|access[_-]?keys?|secret[_-]?keys?|auth[_-]?keys?|client[_-]?keys?|license[_-]?keys?|consumer[_-]?keys?|auth|keys?)[""']?\s*[:=]\s*)(?=[^\s,;""'&\}\[\]\\()]*[\d\p{P}\p{S}-[\s,;""'&\}\[\]\\()]])[^\s,;""'&\}\[\]\\()]{6,}(?=$|[\s,;&)""'\}\]])"), null),
         // v0.8.4: credentials embedded in scheme://user:pass@host URLs (database URLs,
         // deploy hooks) — ticket only the creds segment so scheme/host stay readable
         // for debugging.
