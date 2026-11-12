@@ -439,7 +439,14 @@ public static class EntityRecognizer
     {
         var toks = new List<OrgTok>();
         foreach (Match m in Regex.Matches(text[lo..hi], @"\S+"))
-            toks.Add(new OrgTok(m.Value, m.Value.TrimEnd(',', '.', ';', ':'), lo + m.Index, lo + m.Index + m.Length, 'X'));
+        {
+            var core = m.Value.TrimEnd(',', '.', ';', ':');
+            // v0.9.22: possessive suffix tokens — "ABC 9 LLC's filing" leaked because
+            // "LLC's" failed the suffix match (the trim only removed , . ; :)
+            if (core.Length > 3 && (core.EndsWith("'s", StringComparison.OrdinalIgnoreCase) || core.EndsWith("\u2019s", StringComparison.OrdinalIgnoreCase)))
+                core = core[..^2];
+            toks.Add(new OrgTok(m.Value, core, lo + m.Index, lo + m.Index + m.Length, 'X'));
+        }
         for (var i = 0; i < toks.Count; i++)
             toks[i] = toks[i] with { Kind = ClassifyOrgToken(toks[i].Raw, toks[i].Core) };
         for (var i = toks.Count - 2; i >= 0; i--)              // R8: chained suffix → name word
@@ -506,6 +513,9 @@ public static class EntityRecognizer
             if (wordToks.Count == 1 && wordToks[0].Core.All(char.IsUpper) && toks[pe - 1].Core == "PA") continue;
             var e = toks[pe - 1].End;
             while (e > toks[sideStarts[0]].Start + 1 && (text[e - 1] == ',' || text[e - 1] == ';')) e--;
+            // v0.9.22: leave possessive markers outside the ticket — "ABC 9 LLC" + "'s"
+            while (e > toks[sideStarts[0]].Start + 2 && (text[e - 1] == 's' || text[e - 1] == 'S') && (text[e - 2] == '\'' || text[e - 2] == '\u2019')) e -= 2;
+            while (e > toks[sideStarts[0]].Start + 1 && (text[e - 1] == '\'' || text[e - 1] == '\u2019')) e--;
             return (toks[sideStarts[0]].Start, e);
         }
         return (0, 0);
@@ -513,6 +523,101 @@ public static class EntityRecognizer
 
     private static int OrgWordCount(List<OrgTok> toks, int from, int to)
         => toks[from..to].Count(t => t.Kind == 'W');
+
+    // ── v0.9.22: plural + possessive PERSON recognition (always-on tier) ──
+    // Norman 2026-11-12: patch without Presidio/NER — Presidio skips >50K chars and
+    // NER chunks at 510 tokens, so large documents fall back to the scanner tier.
+    // Shapes: "the Moores" / "Moores'" (de-pluralized gazetteer hit), "Moore's"
+    // (singular possessive), "Norman Moore's" (forward pair, second token
+    // possessive). Plain forward names ("Norman Moore") intentionally stay
+    // NER-only — with no possessive/plural cue the two-gazetteer-word rule
+    // over-tickets prose ("the Quick Brown's" problem).
+    private static readonly HashSet<string> PluralDenyList = new(StringComparer.OrdinalIgnoreCase)
+    { "paper", "notice", "letter", "report", "form", "case", "file", "filing", "return",
+      "section", "meeting", "amendment", "exemption", "permit", "license", "receipt" };
+
+    private static bool PersonPluralDeny(string w)
+        => w.Length < 3 || PluralDenyList.Contains(w) || OrgSuffixes.Contains(w) ||
+           OrgStopWords.Contains(w) || OrgJoiners.Contains(w) || StateTokens.Contains(w) ||
+           NonNameTokens.Contains(w);
+
+    private static bool CapGazWord(string w)
+        => w.Length >= 3 && char.IsLetter(w[0]) && char.IsUpper(w[0]) &&
+           !PersonPluralDeny(w) && Gazetteer.HasName(w);
+
+    private static bool RawIsPossessive(string raw)
+    {
+        var r = raw.Replace('\u2019', '\'');
+        return r.EndsWith("'s", StringComparison.OrdinalIgnoreCase) || r.EndsWith("'");
+    }
+
+    /// <summary>De-pluralize a capitalized token ("Moores" → "Moore") when the
+    /// singular is a gazetteer name. Returns the singular, or null when no
+    /// de-pluralized form survives the deny-list + gazetteer check.</summary>
+    private static string? Depluralize(string c)
+    {
+        string[] alts = c.Length > 4 && c.EndsWith("ies", StringComparison.OrdinalIgnoreCase) ? new[] { c[..^3] + "y" }
+                      : c.Length > 4 && c.EndsWith("es", StringComparison.OrdinalIgnoreCase) ? new[] { c[..^2] }
+                      : c.Length > 3 && c.EndsWith("s", StringComparison.OrdinalIgnoreCase) ? new[] { c[..^1] }
+                      : Array.Empty<string>();
+        foreach (var a in alts)
+            if (!PersonPluralDeny(a) && Gazetteer.HasName(a)) return a;
+        return null;
+    }
+
+    private static List<(int Start, int End)> ScanPersonPluralRuns(string text)
+    {
+        var cands = new List<(int Start, int End)>();
+        var lineStart = 0;
+        while (lineStart < text.Length)
+        {
+            var nl = text.IndexOf('\n', lineStart);
+            var lineEnd = nl < 0 ? text.Length : nl;
+            ScanPersonPluralLine(text, lineStart, lineEnd, cands);
+            if (nl < 0) break;
+            lineStart = nl + 1;
+        }
+        return cands;
+    }
+
+    private static void ScanPersonPluralLine(string text, int lo, int hi, List<(int Start, int End)> cands)
+    {
+        Gazetteer.EnsureLoaded();
+        var raws = new List<string>();
+        var cores = new List<string>();
+        var starts = new List<int>();
+        foreach (Match m in Regex.Matches(text[lo..hi], @"\S+"))
+        {
+            var c = m.Value.Replace('\u2019', '\'').TrimEnd(',', '.', ';', ':', '!', '?');
+            var possessive = c.EndsWith("'s", StringComparison.OrdinalIgnoreCase) || c.EndsWith("'");
+            var core = possessive && c.EndsWith("'s", StringComparison.OrdinalIgnoreCase) && c.Length > 2 ? c[..^2] : c;
+            core = core.TrimEnd('\'');
+            raws.Add(m.Value);
+            cores.Add(core);
+            starts.Add(lo + m.Index);
+        }
+        var consumed = new bool[cores.Count];
+        for (var i = 0; i + 1 < cores.Count; i++)         // forward pair: "Norman Moore's"
+        {
+            if (consumed[i] || !CapGazWord(cores[i])) continue;
+            var c2 = cores[i + 1];
+            if (consumed[i + 1] || !CapGazWord(c2) || !RawIsPossessive(raws[i + 1])) continue;
+            cands.Add((starts[i], starts[i + 1] + c2.Length));
+            consumed[i] = consumed[i + 1] = true;
+        }
+        for (var i = 0; i < cores.Count; i++)             // singles: possessive / "the"-led plural
+        {
+            if (consumed[i]) continue;
+            var c = cores[i];
+            if (c.Length < 3 || !char.IsLetter(c[0]) || !char.IsUpper(c[0])) continue;
+            var poss = RawIsPossessive(raws[i]);
+            var sing = Depluralize(c);
+            if (poss && Gazetteer.HasName(c))
+                cands.Add((starts[i], starts[i] + c.Length));          // "Moore's", "Moores'" → value = core
+            else if (sing != null && (poss || (i > 0 && cores[i - 1].Equals("the", StringComparison.OrdinalIgnoreCase))))
+                cands.Add((starts[i], starts[i] + c.Length));          // "the Moores" / "Moores'"
+        }
+    }
 
     public static (string Text, List<Finding> Findings) Scrub(string text, VaultData vault)
     {
@@ -560,6 +665,22 @@ public static class EntityRecognizer
             var line = 1 + text[..m.Index].Count(c => c == '\n');
             findings.Add(new Finding(line, "PERSON", ph));
             text = text[..m.Index] + "[" + ph + "]" + text[(m.Index + m.Length)..];
+        }
+
+        // ---- PERSON_PLURAL pass (v0.9.22): plural + possessive names, always-on.
+        // Presidio skips >50K chars and NER chunks at 510 tokens — large documents
+        // need the scanner tier to carry these shapes. Gazetteer-validated with the
+        // REVERSE_NAME guards (state/non-name/stop-word/org-suffix exclusions).
+        var pluralCands = ScanPersonPluralRuns(text).OrderByDescending(c => c.Start).ToList();
+        foreach (var (ps, pe) in pluralCands)
+        {
+            var value = text[ps..pe];
+            if (IsStateCodeList(value)) continue;
+            if (LooksLikeCode(value)) continue;
+            var ph = Sanitizer.Placeholder(vault, "PERSON", value);
+            var line = 1 + text[..ps].Count(c => c == '\n');
+            findings.Add(new Finding(line, "PERSON", ph));
+            text = text[..ps] + "[" + ph + "]" + text[pe..];
         }
 
         return (text, findings);
