@@ -395,6 +395,8 @@ public static class EntityRecognizer
     // R7 per-side ≤3 words (an over-long leading side trims to the last 3); ≤2 connectors.
     // R8 chained suffixes are name words, not terminators ("Shipbuilding Co Ltd").
     // R9 narrow legacy guard: single ALL-CAPS name word + "PA" suffix skips (city, state).
+    // v0.9.21: short pure-digit tokens (≤4 digits) are run words ('D') — they join
+    // runs mid-name but never start one ("ABC 9 LLC" ✓; "5 LLC" still skips).
 
     private sealed record OrgTok(string Raw, string Core, int Start, int End, char Kind);
 
@@ -407,7 +409,13 @@ public static class EntityRecognizer
         if (core.Equals("and", StringComparison.OrdinalIgnoreCase)) return 'N';  // R2
         if (OrgJoiners.Contains(core)) return 'J';            // R2
         if (char.IsLower(core[0])) return 'B';                // R1
-        if (!core.Any(char.IsLetter)) return 'B';             // amounts, bare numbers
+        if (!core.Any(char.IsLetter))
+        {
+            // v0.9.21: short pure-digit tokens are run words mid-name ("ABC 9 LLC",
+            // "Level 3 Communications") — 'D' joins runs but never starts one, so bare
+            // amounts stay out ("5 LLC" still skips; the run must open with a word).
+            return core.Length <= 4 && core.All(char.IsDigit) ? 'D' : 'B';
+        }
         if (OrgSuffixes.Contains(core)) return 'S';
         return 'W';
     }
@@ -448,7 +456,7 @@ public static class EntityRecognizer
             while (j < toks.Count)
             {
                 var k = toks[j].Kind;
-                if (k is 'W' or 'A' or 'J' or 'N') { j++; continue; }
+                if (k is 'W' or 'D' or 'A' or 'J' or 'N') { j++; continue; }
                 if (k == 'S') { j++; break; }
                 break;
             }

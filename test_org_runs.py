@@ -32,6 +32,17 @@ CASES = [
      "[ORG_ENTITY_1] settled the case."),
     ("Caption: Lopez Logistics Inc, et al. v. Commonwealth of Pennsylvania.",
      "Caption: [ORG_ENTITY_1], et al. v. Commonwealth of Pennsylvania."),
+    # v0.9.21: bare-digit tokens join runs mid-name, never start one
+    ("Contract with ABC 9 LLC over unpaid freight.",
+     "Contract with [ORG_ENTITY_1] over unpaid freight."),
+    ("Level 3 Communications, LLC filed late.",
+     "[ORG_ENTITY_1] filed late."),
+    ("Route 66 LLC owes money.",
+     "[ORG_ENTITY_1] owes money."),
+    ("I have 5 LLC filings due today.",
+     "I have 5 LLC filings due today."),          # bare amount: digit can't start a run
+    ("99 Cents Only Stores Corp opened a store.",
+     "99 [ORG_ENTITY_1] opened a store."),        # digit-led name: partial (99 stays)
 ]
 
 
