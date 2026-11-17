@@ -1,5 +1,20 @@
 import json
+import re
 import http.server
+
+
+def bare_report(body):
+    # v0.9.23: model echoes tickets WITHOUT brackets (field report 2026-11-17:
+    # "MISC_51" / "MISC51" surfaced user-visible). Build a reply from whatever
+    # tickets upstream received, in bare and underscore-dropped forms, plus
+    # guard tokens that must NOT restore (CLI boundary-guard shapes).
+    toks = sorted(set(re.findall(r"\[[A-Z][A-Z_]*_\d+\]", body)))
+    parts = []
+    for t in toks:
+        b = t[1:-1]              # FEIN_1 (bare)
+        d = b.replace("_", "")   # FEIN1 (dropped)
+        parts.append(f"bare {b}, dropped {d}, guards MY_{b} {b}_extra {b}_10 and unknown FIELD_1")
+    return "Report: " + " | ".join(parts) + "."
 
 class H(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
@@ -101,6 +116,17 @@ class H(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.end_headers()
+            if "BARE-STREAM" in body:
+                # v0.9.23: bare tickets streamed per-character — the bare-tail
+                # hold must carry partial runs ("FEIN", "FEIN_") until complete
+                text = bare_report(body)
+                for ch in text:
+                    ev = json.dumps({"choices": [{"delta": {"content": ch}}]})
+                    self.wfile.write(f"data: {ev}\n\n".encode())
+                    self.wfile.flush()
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush()
+                return
             if "TOOLCALL-MODE" in body:
                 # v0.8.9 regression: vLLM tokenizes tool_call arguments per character
                 # (captured on proliant-vl: '[', 'S', 'S', 'N', '_', '1', ']'). Every
@@ -132,6 +158,8 @@ class H(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             content = "The client FEIN is [FEIN_1] per records."
+            if "BARE-MODE" in body:
+                content = bare_report(body)
             if "CODEBLOCK-MODE" in body:
                 # v0.9.12: non-streaming fenced-code response for suppress-code tests
                 content = "Here is code:\n```js\nconst result = 1 + 1;\nconsole.log(result);\n```\nDone."

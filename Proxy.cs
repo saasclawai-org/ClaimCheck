@@ -20,9 +20,28 @@ public static class Proxy
     // ticket across fragments (found 2026-10-29 via proliant-vl qwen3-coder lane).
     private static readonly Regex PartialTailRx = new(@"\[[A-Z_0-9]{0,24}$");
 
+    // v0.9.23: bare-form ticket tokens — uppercase identifier runs ("SSN_1", "MISC51").
+    // Restore is vault-gated: a token only restores when it (or its underscore-inserted
+    // form) is an EXACT key in this lane's vault; unknown tokens pass through untouched.
+    private static readonly Regex BareTokenRx = new(@"(?<![A-Za-z0-9_])([A-Z][A-Z0-9_]{1,31})(?![A-Za-z0-9_])");
+    // strict identifier shape for the underscore-insert candidate: letters/underscores
+    // ending in letters, then a short trailing digit run ("SSN1" -> SSN_1, "MISC51" -> MISC_51)
+    private static readonly Regex TailDigitsRx = new(@"^([A-Z][A-Z_]*[A-Z])(\d{1,6})$");
+    // v0.9.23: mid-stream hold — the buffer end is not a known ticket boundary, so the
+    // trailing identifier run must stay buffered until a non-identifier char proves the
+    // token complete ("…MY_" + "FEIN_1" only guards correctly if MY_FEIN_1 stays whole).
+    private static readonly Regex BareTailRunRx = new(@"(?<![A-Za-z0-9_])([A-Za-z][A-Za-z0-9_]{0,63})$");
+
     /// <summary>Fail-closed: if the scrub pass throws, hold the request (503) instead of
     /// forwarding unscrubbed. Default on; SANITIZE_FAIL_CLOSED=0 to disable.</summary>
     public static bool FailClosed { get; } = Environment.GetEnvironmentVariable("SANITIZE_FAIL_CLOSED") != "0";
+
+    /// <summary>v0.9.23: bare-form ticket restore. Models echo tickets without brackets
+    /// or drop the underscore when quoting them in prose/files; the bracketed-only pass
+    /// leaked the raw ticket string to the end user (field report 2026-11-17: "MISC_51"
+    /// / "MISC51" surfaced in an answer). Default on; SANITIZE_BARE_RESTORE=0 disables
+    /// (lanes serving outputs where TYPE_N-shaped identifiers are meaningful).</summary>
+    public static bool BareRestore { get; } = Environment.GetEnvironmentVariable("SANITIZE_BARE_RESTORE") != "0";
 
     /// <summary>SANITIZE_PROXY_LOG=1 → one stderr line per request (method, path, status, ms).
     /// Default off — journals stay free of per-request noise unless explicitly enabled.</summary>
@@ -964,26 +983,71 @@ public static class Proxy
 
     // -------- inbound restore --------
 
-    private static string RestoreText(string text, VaultData vault)
+    private static string RestoreText(string text, VaultData vault, bool final = true)
     {
-        if (!PlaceholderRx.IsMatch(text) && !FakeData.Enabled) return text;
+        if (!PlaceholderRx.IsMatch(text) && !BareRestore && !FakeData.Enabled) return text;
         lock (Sanitizer.VaultLock)
         {
             foreach (var (ph, val) in vault.Map)
                 text = text.Replace("[" + ph + "]", val);
+            if (BareRestore)
+            {
+                // v0.9.23: mid-stream the buffer end is NOT a known right boundary —
+                // a bare form at the very end may still grow ("FEIN_1" -> "FEIN_1x").
+                // final:false makes the bare pass demand a real right-boundary char
+                // (\z excluded); final flushes (end of stream) accept end-of-string.
+                text = RestoreBareForms(text, vault, final);
+            }
         }
         text = FakeData.RestoreFake(text, vault);
         return text;
     }
 
-    private static string DrainRestored(StringBuilder sb, VaultData vault)
+    // v0.9.23: bare-form restore, vault-gated. Same boundary guards as the CLI --bare
+    // pass (Program.cs, v0.9.0): never touches MY_SSN_1 variables, SSN_10 prefixes, or
+    // SSN_1_extra / SSN_1_2 underscore-suffixed identifiers. Case-sensitive uppercase —
+    // tickets are minted uppercase and echoed verbatim; lowercase identifiers never
+    // collide. Each matched key restores BOTH the exact bare form (SSN_1) and the
+    // underscore-dropped echo (SSN1) to the same value; unknown tokens pass through.
+    private static string RestoreBareForms(string text, VaultData vault, bool final)
+    {
+        // right boundary: final flushes accept end-of-string; mid-stream drains must
+        // see a REAL non-identifier char after the token ("FEIN_1" + "_extra" case)
+        var rb = final ? @"(?![A-Za-z0-9_])" : @"(?![A-Za-z0-9_]|\z)";
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Match m in BareTokenRx.Matches(text))
+        {
+            var tok = m.Value;
+            if (vault.Map.ContainsKey(tok)) keys.Add(tok);
+            var tm = TailDigitsRx.Match(tok);
+            if (tm.Success)
+            {
+                var k = tm.Groups[1].Value + "_" + tm.Groups[2].Value;
+                if (k != tok && vault.Map.ContainsKey(k)) keys.Add(k);
+            }
+            if (keys.Count >= 128) break; // absurd-output guard
+        }
+        foreach (var k in keys.OrderByDescending(x => x.Length))
+        {
+            var val = vault.Map[k];
+            text = new Regex(@"(?<![A-Za-z0-9_])" + Regex.Escape(k) + rb).Replace(text, val);
+            var dropped = k.Replace("_", "");
+            if (dropped != k)
+                text = new Regex(@"(?<![A-Za-z0-9_])" + Regex.Escape(dropped) + rb).Replace(text, val);
+        }
+        return text;
+    }
+
+    private static string DrainRestored(StringBuilder sb, VaultData vault, bool holdPartial = true)
     {
         var text = sb.ToString();
-        var restored = RestoreText(text, vault);
+        var restored = RestoreText(text, vault, final: !holdPartial);
         var emitLen = restored.Length;
         var bm = PartialTailRx.Match(restored);
         if (bm.Success)
             emitLen = restored.Length - bm.Length;
+        else if (holdPartial && BareRestore && BareTailHoldIndex(restored, out var holdAt))
+            emitLen = holdAt;
         else if (FakeData.Enabled)
         {
             var held = FakeData.HeldFakeSuffix(restored, vault);
@@ -993,6 +1057,19 @@ public static class Proxy
         sb.Clear();
         if (emitLen < restored.Length) sb.Append(restored[emitLen..]);
         return restored[..emitLen];
+    }
+
+    // v0.9.23: hold the trailing identifier run while it may still grow — a bare ticket's
+    // right boundary is unknown until a non-identifier char arrives, and left-boundary
+    // guards (MY_FEIN_1) only work if the whole token stays in one buffer. Emits lag by
+    // at most one token; keys never exceed ~26 chars, so >64-char runs flush immediately.
+    private static bool BareTailHoldIndex(string restored, out int holdAt)
+    {
+        holdAt = restored.Length;
+        var m = BareTailRunRx.Match(restored);
+        if (!m.Success) return false;
+        holdAt = m.Index;
+        return true;
     }
 
     private static async Task RestoreSse(Stream upstream, HttpResponse response, CancellationToken ct, VaultData vault)
@@ -1016,7 +1093,7 @@ public static class Proxy
                 {
                     foreach (var kv in carries.ToArray())
                     {
-                        var flushed = DrainRestored(kv.Value, vault);
+                        var flushed = DrainRestored(kv.Value, vault, holdPartial: false);
                         if (suppressStates.TryGetValue(kv.Key, out var st))
                             flushed = ApplyCodeSuppress(flushed, st, flush: true);
                         if (flushed.Length > 0)
@@ -1033,7 +1110,7 @@ public static class Proxy
                 var tail = new StringBuilder();
                 foreach (var c in carries.Values) tail.Append(c.ToString());
                 carries.Clear();
-                var flushedAll = DrainRestored(tail, vault);
+                var flushedAll = DrainRestored(tail, vault, holdPartial: false);
                 if (flushedAll.Length > 0) await response.WriteAsync(flushedAll, ct);
                 await response.WriteAsync("data: [DONE]\n\n", ct);
                 continue;
@@ -1064,6 +1141,19 @@ public static class Proxy
                 }
 
             await response.WriteAsync("data: " + node.ToJsonString() + "\n\n", ct);
+        }
+        // v0.9.23: upstream closed without [DONE] — flush anything still held;
+        // incomplete tails are literals at this point, not the head of a ticket.
+        foreach (var kv in carries.ToArray())
+        {
+            var flushed = DrainRestored(kv.Value, vault, holdPartial: false);
+            if (suppressStates.TryGetValue(kv.Key, out var stEnd))
+                flushed = ApplyCodeSuppress(flushed, stEnd, flush: true);
+            if (flushed.Length > 0)
+            {
+                var ev = new JsonObject { ["choices"] = new JsonArray { new JsonObject { ["delta"] = new JsonObject { ["content"] = flushed } } } };
+                await response.WriteAsync("data: " + ev.ToJsonString() + "\n\n", ct);
+            }
         }
     }
 
